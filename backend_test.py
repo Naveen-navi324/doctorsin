@@ -855,16 +855,34 @@ class HealthcareAPITester:
             print("❌ No appointment ID found")
             return False, {}
         
+        # Store original patient token
+        original_patient_token = self.tokens.get('patient')
+        original_patient_user = self.users.get('patient')
+        
         # Create another patient to test unauthorized access
-        success, response = self.test_user_registration("patient", "_unauthorized")
+        timestamp = datetime.now().strftime('%H%M%S')
+        unauthorized_user_data = {
+            "email": f"unauthorized_patient_{timestamp}@example.com",
+            "password": "TestPass123!",
+            "name": f"Unauthorized Patient {timestamp}",
+            "role": "patient",
+            "phone": "+1234567890",
+            "age": 25
+        }
+        
+        success, response = self.run_test(
+            "Register Unauthorized Patient", 
+            "POST", 
+            "auth/register", 
+            200, 
+            unauthorized_user_data
+        )
+        
         if not success:
             print("❌ Failed to create unauthorized patient")
             return False, {}
         
-        # The token key will be 'patient' since that's how test_user_registration works
-        # We need to store the current patient token and use the new one
-        original_patient_token = self.tokens.get('patient')
-        unauthorized_token = self.tokens.get('patient')  # This will be the new patient's token
+        unauthorized_token = response.get('access_token')
         
         result = self.run_test(
             "Get Appointment Details Unauthorized", 
@@ -874,9 +892,11 @@ class HealthcareAPITester:
             token=unauthorized_token
         )
         
-        # Restore original patient token
+        # Restore original patient token and user
         if original_patient_token:
             self.tokens['patient'] = original_patient_token
+        if original_patient_user:
+            self.users['patient'] = original_patient_user
             
         return result
 
