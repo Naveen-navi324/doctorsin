@@ -37,6 +37,8 @@ class HealthcareAPITester:
                 response = requests.post(url, json=data, headers=request_headers)
             elif method == 'PUT':
                 response = requests.put(url, json=data, headers=request_headers)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=request_headers)
 
             success = response.status_code == expected_status
             
