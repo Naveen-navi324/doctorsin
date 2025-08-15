@@ -692,6 +692,340 @@ async def delete_availability_slot(
     
     return {"message": "Availability slot deleted successfully"}
 
+# Appointment Routes
+@api_router.post("/appointments", response_model=AppointmentResponse)
+async def book_appointment(
+    appointment_data: AppointmentCreate,
+    current_user: User = Depends(require_role([UserRole.PATIENT]))
+):
+    # Check if availability slot exists and is available
+    slot = await db.availability_slots.find_one({
+        "id": appointment_data.availability_slot_id,
+        "doctor_id": appointment_data.doctor_id,
+        "status": AvailabilityStatus.AVAILABLE
+    })
+    
+    if not slot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Availability slot not found or already booked"
+        )
+    
+    # Validate appointment date and time match the slot
+    slot_obj = AvailabilitySlot(**slot)
+    if (appointment_data.appointment_date.date() != slot_obj.date.date() or
+        appointment_data.start_time != slot_obj.start_time or
+        appointment_data.end_time != slot_obj.end_time):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Appointment details don't match the availability slot"
+        )
+    
+    # Check if patient already has an appointment at this time
+    existing_appointment = await db.appointments.find_one({
+        "patient_id": current_user.id,
+        "appointment_date": appointment_data.appointment_date,
+        "start_time": appointment_data.start_time,
+        "status": {"$in": [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]}
+    })
+    
+    if existing_appointment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have an appointment scheduled at this time"
+        )
+    
+    # Create appointment
+    appointment = Appointment(**appointment_data.dict(), patient_id=current_user.id)
+    appointment_doc = appointment.dict()
+    
+    # Insert appointment and update availability slot status
+    await db.appointments.insert_one(appointment_doc)
+    await db.availability_slots.update_one(
+        {"id": appointment_data.availability_slot_id},
+        {"$set": {"status": AvailabilityStatus.BOOKED}}
+    )
+    
+    # Get doctor and patient info for response
+    doctor = await db.users.find_one({"id": appointment_data.doctor_id})
+    doctor_profile = await db.doctor_profiles.find_one({"user_id": appointment_data.doctor_id})
+    
+    response = AppointmentResponse(**appointment.dict())
+    if doctor:
+        response.doctor_name = doctor.get('name')
+    if doctor_profile:
+        response.doctor_specializations = doctor_profile.get('specializations', [])
+        response.doctor_clinic_name = doctor_profile.get('clinic_info', {}).get('name')
+        response.doctor_clinic_address = doctor_profile.get('clinic_info', {}).get('address')
+        if appointment_data.consultation_type == ConsultationType.ONLINE:
+            response.consultation_fee = doctor_profile.get('consultation_fee_online')
+        elif appointment_data.consultation_type == ConsultationType.CLINIC:
+            response.consultation_fee = doctor_profile.get('consultation_fee_clinic')
+    
+    response.patient_name = current_user.name
+    response.patient_email = current_user.email
+    response.patient_phone = current_user.phone
+    
+    return response
+
+@api_router.get("/appointments", response_model=List[AppointmentResponse])
+async def get_my_appointments(
+    status: Optional[AppointmentStatus] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    # Build query based on user role
+    query = {}
+    if current_user.role == UserRole.PATIENT:
+        query["patient_id"] = current_user.id
+    elif current_user.role == UserRole.DOCTOR:
+        query["doctor_id"] = current_user.id
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only patients and doctors can access appointments"
+        )
+    
+    # Add filters
+    if status:
+        query["status"] = status
+    
+    if start_date or end_date:
+        date_query = {}
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                date_query["$gte"] = start_dt
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid start_date format. Use YYYY-MM-DD"
+                )
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+                date_query["$lte"] = end_dt
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid end_date format. Use YYYY-MM-DD"
+                )
+        query["appointment_date"] = date_query
+    
+    # Get appointments
+    appointments = await db.appointments.find(query).sort("appointment_date", 1).to_list(100)
+    
+    # Enrich with doctor and patient information
+    appointment_responses = []
+    for appt in appointments:
+        appointment = Appointment(**appt)
+        response = AppointmentResponse(**appointment.dict())
+        
+        # Get doctor info
+        doctor = await db.users.find_one({"id": appointment.doctor_id})
+        doctor_profile = await db.doctor_profiles.find_one({"user_id": appointment.doctor_id})
+        if doctor:
+            response.doctor_name = doctor.get('name')
+        if doctor_profile:
+            response.doctor_specializations = doctor_profile.get('specializations', [])
+            response.doctor_clinic_name = doctor_profile.get('clinic_info', {}).get('name')
+            response.doctor_clinic_address = doctor_profile.get('clinic_info', {}).get('address')
+            if appointment.consultation_type == ConsultationType.ONLINE:
+                response.consultation_fee = doctor_profile.get('consultation_fee_online')
+            elif appointment.consultation_type == ConsultationType.CLINIC:
+                response.consultation_fee = doctor_profile.get('consultation_fee_clinic')
+        
+        # Get patient info
+        patient = await db.users.find_one({"id": appointment.patient_id})
+        if patient:
+            response.patient_name = patient.get('name')
+            response.patient_email = patient.get('email')
+            response.patient_phone = patient.get('phone')
+        
+        appointment_responses.append(response)
+    
+    return appointment_responses
+
+@api_router.get("/appointments/{appointment_id}", response_model=AppointmentResponse)
+async def get_appointment_details(
+    appointment_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    # Find appointment
+    appointment = await db.appointments.find_one({"id": appointment_id})
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    appointment_obj = Appointment(**appointment)
+    
+    # Check if user has access to this appointment
+    if (current_user.role == UserRole.PATIENT and appointment_obj.patient_id != current_user.id) or \
+       (current_user.role == UserRole.DOCTOR and appointment_obj.doctor_id != current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this appointment"
+        )
+    
+    # Build response with complete information
+    response = AppointmentResponse(**appointment_obj.dict())
+    
+    # Get doctor info
+    doctor = await db.users.find_one({"id": appointment_obj.doctor_id})
+    doctor_profile = await db.doctor_profiles.find_one({"user_id": appointment_obj.doctor_id})
+    if doctor:
+        response.doctor_name = doctor.get('name')
+    if doctor_profile:
+        response.doctor_specializations = doctor_profile.get('specializations', [])
+        response.doctor_clinic_name = doctor_profile.get('clinic_info', {}).get('name')
+        response.doctor_clinic_address = doctor_profile.get('clinic_info', {}).get('address')
+        if appointment_obj.consultation_type == ConsultationType.ONLINE:
+            response.consultation_fee = doctor_profile.get('consultation_fee_online')
+        elif appointment_obj.consultation_type == ConsultationType.CLINIC:
+            response.consultation_fee = doctor_profile.get('consultation_fee_clinic')
+    
+    # Get patient info
+    patient = await db.users.find_one({"id": appointment_obj.patient_id})
+    if patient:
+        response.patient_name = patient.get('name')
+        response.patient_email = patient.get('email')
+        response.patient_phone = patient.get('phone')
+    
+    return response
+
+@api_router.put("/appointments/{appointment_id}", response_model=AppointmentResponse)
+async def update_appointment_status(
+    appointment_id: str,
+    status_update: AppointmentStatusUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    # Find appointment
+    appointment = await db.appointments.find_one({"id": appointment_id})
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    appointment_obj = Appointment(**appointment)
+    
+    # Check permissions for status updates
+    if current_user.role == UserRole.PATIENT:
+        # Patients can only cancel their own appointments
+        if appointment_obj.patient_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this appointment"
+            )
+        if status_update.status not in [AppointmentStatus.CANCELLED]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Patients can only cancel appointments"
+            )
+    elif current_user.role == UserRole.DOCTOR:
+        # Doctors can confirm, complete, or cancel their appointments
+        if appointment_obj.doctor_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this appointment"
+            )
+        if status_update.status not in [AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid status update for doctor"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only patients and doctors can update appointments"
+        )
+    
+    # Prepare update data
+    update_data = {
+        "status": status_update.status,
+        "updated_at": datetime.utcnow()
+    }
+    
+    if status_update.notes:
+        update_data["notes"] = status_update.notes
+    
+    # Set specific timestamps based on status
+    if status_update.status == AppointmentStatus.CONFIRMED:
+        update_data["confirmed_at"] = datetime.utcnow()
+    elif status_update.status == AppointmentStatus.COMPLETED:
+        update_data["completed_at"] = datetime.utcnow()
+    elif status_update.status == AppointmentStatus.CANCELLED:
+        update_data["cancelled_at"] = datetime.utcnow()
+        if status_update.cancellation_reason:
+            update_data["cancellation_reason"] = status_update.cancellation_reason
+        
+        # Free up the availability slot if cancelled
+        await db.availability_slots.update_one(
+            {"id": appointment_obj.availability_slot_id},
+            {"$set": {"status": AvailabilityStatus.AVAILABLE}}
+        )
+    
+    # Update appointment
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": update_data}
+    )
+    
+    # Return updated appointment
+    return await get_appointment_details(appointment_id, current_user)
+
+@api_router.delete("/appointments/{appointment_id}")
+async def cancel_appointment(
+    appointment_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    # Find appointment
+    appointment = await db.appointments.find_one({"id": appointment_id})
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found"
+        )
+    
+    appointment_obj = Appointment(**appointment)
+    
+    # Check if user can cancel this appointment
+    if (current_user.role == UserRole.PATIENT and appointment_obj.patient_id != current_user.id) or \
+       (current_user.role == UserRole.DOCTOR and appointment_obj.doctor_id != current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this appointment"
+        )
+    
+    # Check if appointment can be cancelled
+    if appointment_obj.status in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel a completed or already cancelled appointment"
+        )
+    
+    # Update appointment status to cancelled
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": {
+            "status": AppointmentStatus.CANCELLED,
+            "cancelled_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "cancellation_reason": f"Cancelled by {current_user.role}"
+        }}
+    )
+    
+    # Free up the availability slot
+    await db.availability_slots.update_one(
+        {"id": appointment_obj.availability_slot_id},
+        {"$set": {"status": AvailabilityStatus.AVAILABLE}}
+    )
+    
+    return {"message": "Appointment cancelled successfully"}
+
 # Dashboard Routes
 @api_router.get("/dashboard/patient")
 async def get_patient_dashboard(
