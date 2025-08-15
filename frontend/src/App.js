@@ -1828,6 +1828,62 @@ const AppointmentsList = ({ userRole }) => {
 
 // Dashboard Components
 const PatientDashboard = ({ user }) => {
+  const [appointmentStats, setAppointmentStats] = useState({
+    upcoming: 0,
+    total: 0,
+    recentAppointments: []
+  });
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchAppointmentStats();
+  }, []);
+
+  const fetchAppointmentStats = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch upcoming appointments
+      const upcomingResponse = await axios.get(`${API}/appointments?start_date=${today}`);
+      const upcoming = upcomingResponse.data;
+
+      // Fetch all appointments for total count
+      const allResponse = await axios.get(`${API}/appointments`);
+      const all = allResponse.data;
+
+      // Get recent appointments (last 5)
+      const recent = all
+        .sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))
+        .slice(0, 5);
+
+      setAppointmentStats({
+        upcoming: upcoming.length,
+        total: all.length,
+        recentAppointments: recent
+      });
+    } catch (error) {
+      console.error('Error fetching appointment stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatTime = (timeString) => {
+    return new Date(`1970-01-01T${timeString}:00`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1847,19 +1903,33 @@ const PatientDashboard = ({ user }) => {
             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">No appointments scheduled</p>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : appointmentStats.upcoming}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {appointmentStats.upcoming === 0 
+                ? 'No appointments scheduled'
+                : `${appointmentStats.upcoming} appointment${appointmentStats.upcoming > 1 ? 's' : ''} coming up`
+              }
+            </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Health Records</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">No records yet</p>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : appointmentStats.total}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {appointmentStats.total === 0 
+                ? 'No appointments yet'
+                : 'Lifetime appointments'
+              }
+            </p>
           </CardContent>
         </Card>
         
@@ -1875,18 +1945,73 @@ const PatientDashboard = ({ user }) => {
         </Card>
       </div>
       
+      {/* Recent Appointments */}
+      {appointmentStats.recentAppointments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <CalendarIcon className="h-5 w-5 mr-2" />
+              Recent Appointments
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {appointmentStats.recentAppointments.map((appointment) => (
+                <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-blue-600 text-white text-xs">
+                        {appointment.doctor_name?.charAt(0).toUpperCase() || 'D'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-sm">Dr. {appointment.doctor_name}</p>
+                      <p className="text-xs text-gray-600">{appointment.reason}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">{formatDate(appointment.appointment_date)}</p>
+                    <p className="text-xs text-gray-600">{formatTime(appointment.start_time)}</p>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${
+                      appointment.status === 'completed' ? 'border-green-200 text-green-700' :
+                      appointment.status === 'confirmed' ? 'border-blue-200 text-blue-700' :
+                      appointment.status === 'cancelled' ? 'border-red-200 text-red-700' :
+                      'border-yellow-200 text-yellow-700'
+                    }`}
+                  >
+                    {appointment.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => navigate('/appointments')}
+              >
+                View All Appointments
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => window.location.href = '/doctors'}>
+          <Button onClick={() => navigate('/doctors')}>
             <Search className="h-4 w-4 mr-2" />
             Find Doctors
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => navigate('/appointments')}>
             <CalendarIcon className="h-4 w-4 mr-2" />
-            Book Appointment
+            My Appointments
           </Button>
           <Button variant="outline">
             <TestTube className="h-4 w-4 mr-2" />
