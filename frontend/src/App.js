@@ -1517,9 +1517,12 @@ const DoctorDirectory = () => {
                     </div>
 
                     {/* Book Button */}
-                    <Button className="w-full" disabled>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => handleBookAppointment(doctor)}
+                    >
                       <CalendarIcon className="h-4 w-4 mr-2" />
-                      Book Appointment (Coming Soon)
+                      Book Appointment
                     </Button>
                   </CardContent>
                 </Card>
@@ -1528,6 +1531,15 @@ const DoctorDirectory = () => {
           </div>
         )}
       </div>
+
+      {/* Appointment Booking Modal */}
+      <Dialog open={showBookingModal} onOpenChange={setShowBookingModal}>
+        <AppointmentBookingModal
+          doctor={selectedDoctor}
+          onClose={() => setShowBookingModal(false)}
+          onBookingSuccess={handleBookingSuccess}
+        />
+      </Dialog>
     </div>
   );
 };
