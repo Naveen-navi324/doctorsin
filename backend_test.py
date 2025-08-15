@@ -252,6 +252,369 @@ class HealthcareAPITester:
         
         return success1 and success2, {}
 
+    # Doctor Profile Management Tests
+    def test_create_doctor_profile(self):
+        """Test creating a doctor profile"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found for profile creation test")
+            return False, {}
+            
+        profile_data = {
+            "bio": "Experienced cardiologist with 15 years of practice",
+            "specializations": ["Cardiology", "Internal Medicine"],
+            "qualifications": ["MBBS", "MD", "FRCS"],
+            "experience_years": 15,
+            "license_number": "MED12345",
+            "consultation_fee_online": 75.0,
+            "consultation_fee_clinic": 150.0,
+            "consultation_types": ["both"],
+            "clinic_info": {
+                "name": "Heart Care Center",
+                "address": "123 Medical Street",
+                "city": "New York",
+                "state": "NY",
+                "zipcode": "10001",
+                "phone": "+1234567890",
+                "facilities": ["ECG", "Echo", "Stress Test"]
+            }
+        }
+        
+        success, response = self.run_test(
+            "Create Doctor Profile", 
+            "POST", 
+            "doctor/profile", 
+            200, 
+            profile_data,
+            token=self.tokens['doctor']
+        )
+        
+        if success:
+            self.doctor_profile_id = response.get('id')
+        return success, response
+
+    def test_get_my_doctor_profile(self):
+        """Test getting own doctor profile"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        return self.run_test(
+            "Get My Doctor Profile", 
+            "GET", 
+            "doctor/profile", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_update_doctor_profile(self):
+        """Test updating doctor profile"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        updated_data = {
+            "bio": "Updated bio: Experienced cardiologist with 16 years of practice",
+            "specializations": ["Cardiology", "Internal Medicine", "Preventive Medicine"],
+            "qualifications": ["MBBS", "MD", "FRCS", "FACC"],
+            "experience_years": 16,
+            "license_number": "MED12345",
+            "consultation_fee_online": 80.0,
+            "consultation_fee_clinic": 160.0,
+            "consultation_types": ["both"],
+            "clinic_info": {
+                "name": "Advanced Heart Care Center",
+                "address": "456 Medical Avenue",
+                "city": "New York",
+                "state": "NY",
+                "zipcode": "10002",
+                "phone": "+1234567891",
+                "facilities": ["ECG", "Echo", "Stress Test", "Holter Monitor"]
+            }
+        }
+        
+        return self.run_test(
+            "Update Doctor Profile", 
+            "PUT", 
+            "doctor/profile", 
+            200, 
+            updated_data,
+            token=self.tokens['doctor']
+        )
+
+    def test_get_doctor_profile_by_id(self):
+        """Test getting doctor profile by ID (public endpoint)"""
+        if 'doctor' not in self.users:
+            print("❌ No doctor user found")
+            return False, {}
+            
+        doctor_id = self.users['doctor']['id']
+        return self.run_test(
+            "Get Doctor Profile by ID", 
+            "GET", 
+            f"doctor/profile/{doctor_id}", 
+            200
+        )
+
+    def test_get_all_doctors(self):
+        """Test getting all doctors (public endpoint)"""
+        return self.run_test(
+            "Get All Doctors", 
+            "GET", 
+            "doctors", 
+            200
+        )
+
+    def test_get_doctors_with_filters(self):
+        """Test getting doctors with filters"""
+        # Test specialization filter
+        success1, _ = self.run_test(
+            "Get Doctors by Specialization", 
+            "GET", 
+            "doctors?specialization=Cardiology", 
+            200
+        )
+        
+        # Test city filter
+        success2, _ = self.run_test(
+            "Get Doctors by City", 
+            "GET", 
+            "doctors?city=New York", 
+            200
+        )
+        
+        # Test consultation type filter
+        success3, _ = self.run_test(
+            "Get Doctors by Consultation Type", 
+            "GET", 
+            "doctors?consultation_type=both", 
+            200
+        )
+        
+        return success1 and success2 and success3, {}
+
+    def test_patient_cannot_create_doctor_profile(self):
+        """Test that patients cannot create doctor profiles"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+            
+        profile_data = {
+            "bio": "This should fail",
+            "specializations": ["General Medicine"],
+            "qualifications": ["MBBS"],
+            "experience_years": 5
+        }
+        
+        return self.run_test(
+            "Patient Cannot Create Doctor Profile", 
+            "POST", 
+            "doctor/profile", 
+            403, 
+            profile_data,
+            token=self.tokens['patient']
+        )
+
+    # Doctor Availability Management Tests
+    def test_create_availability_slot(self):
+        """Test creating availability slot"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        slot_data = {
+            "date": tomorrow,
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "consultation_type": "both"
+        }
+        
+        success, response = self.run_test(
+            "Create Availability Slot", 
+            "POST", 
+            "doctor/availability", 
+            200, 
+            slot_data,
+            token=self.tokens['doctor']
+        )
+        
+        if success:
+            self.availability_slot_id = response.get('id')
+        return success, response
+
+    def test_create_multiple_availability_slots(self):
+        """Test creating multiple availability slots"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        day_after = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')
+        
+        slots = [
+            {
+                "date": tomorrow,
+                "start_time": "10:00",
+                "end_time": "11:00",
+                "consultation_type": "online"
+            },
+            {
+                "date": day_after,
+                "start_time": "14:00",
+                "end_time": "15:00",
+                "consultation_type": "clinic"
+            }
+        ]
+        
+        all_success = True
+        for i, slot_data in enumerate(slots):
+            success, _ = self.run_test(
+                f"Create Availability Slot {i+2}", 
+                "POST", 
+                "doctor/availability", 
+                200, 
+                slot_data,
+                token=self.tokens['doctor']
+            )
+            if not success:
+                all_success = False
+                
+        return all_success, {}
+
+    def test_get_my_availability(self):
+        """Test getting own availability"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        return self.run_test(
+            "Get My Availability", 
+            "GET", 
+            "doctor/availability", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_get_doctor_availability_public(self):
+        """Test getting doctor availability (public endpoint)"""
+        if 'doctor' not in self.users:
+            print("❌ No doctor user found")
+            return False, {}
+            
+        doctor_id = self.users['doctor']['id']
+        return self.run_test(
+            "Get Doctor Availability (Public)", 
+            "GET", 
+            f"doctor/{doctor_id}/availability", 
+            200
+        )
+
+    def test_invalid_availability_slot(self):
+        """Test creating invalid availability slots"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+            
+        # Test invalid date format
+        invalid_slot1 = {
+            "date": "invalid-date",
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "consultation_type": "both"
+        }
+        
+        success1, _ = self.run_test(
+            "Invalid Date Format", 
+            "POST", 
+            "doctor/availability", 
+            400, 
+            invalid_slot1,
+            token=self.tokens['doctor']
+        )
+        
+        # Test invalid time format
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        invalid_slot2 = {
+            "date": tomorrow,
+            "start_time": "invalid-time",
+            "end_time": "10:00",
+            "consultation_type": "both"
+        }
+        
+        success2, _ = self.run_test(
+            "Invalid Time Format", 
+            "POST", 
+            "doctor/availability", 
+            400, 
+            invalid_slot2,
+            token=self.tokens['doctor']
+        )
+        
+        # Test start time after end time
+        invalid_slot3 = {
+            "date": tomorrow,
+            "start_time": "15:00",
+            "end_time": "14:00",
+            "consultation_type": "both"
+        }
+        
+        success3, _ = self.run_test(
+            "Start Time After End Time", 
+            "POST", 
+            "doctor/availability", 
+            400, 
+            invalid_slot3,
+            token=self.tokens['doctor']
+        )
+        
+        return success1 and success2 and success3, {}
+
+    def test_delete_availability_slot(self):
+        """Test deleting availability slot"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'availability_slot_id'):
+            print("❌ No doctor token or availability slot ID found")
+            return False, {}
+            
+        success, response = self.run_test(
+            "Delete Availability Slot", 
+            "DELETE", 
+            f"doctor/availability/{self.availability_slot_id}", 
+            200, 
+            token=self.tokens['doctor']
+        )
+        
+        return success, response
+
+    def test_patient_cannot_create_availability(self):
+        """Test that patients cannot create availability slots"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+            
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        slot_data = {
+            "date": tomorrow,
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "consultation_type": "both"
+        }
+        
+        return self.run_test(
+            "Patient Cannot Create Availability", 
+            "POST", 
+            "doctor/availability", 
+            403, 
+            slot_data,
+            token=self.tokens['patient']
+        )
+
 def main():
     print("🏥 DocEase Healthcare API Testing Suite")
     print("=" * 50)
