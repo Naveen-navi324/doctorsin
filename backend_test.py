@@ -1222,6 +1222,43 @@ def main():
     tester.test_invalid_availability_slot()
     tester.test_delete_availability_slot()
     
+    # Appointment Booking System Tests
+    print("\n📋 Appointment Booking System Tests")
+    print("   Setting up test data...")
+    if tester.setup_appointment_test_data():
+        print("   ✅ Test data setup complete")
+        
+        # Booking Tests
+        print("   📝 Booking Tests")
+        tester.test_book_appointment_success()
+        tester.test_book_appointment_invalid_slot()
+        tester.test_book_appointment_already_booked_slot()
+        tester.test_book_appointment_mismatched_details()
+        tester.test_doctor_cannot_book_appointment()
+        
+        # Appointment Retrieval Tests
+        print("   📖 Appointment Retrieval Tests")
+        tester.test_get_patient_appointments()
+        tester.test_get_doctor_appointments()
+        tester.test_get_appointment_details()
+        tester.test_get_appointment_details_unauthorized()
+        tester.test_appointment_filters()
+        
+        # Status Management Tests
+        print("   🔄 Status Management Tests")
+        tester.test_doctor_confirm_appointment()
+        tester.test_doctor_complete_appointment()
+        tester.test_patient_invalid_status_update()
+        tester.test_patient_cancel_appointment()
+        tester.test_cancel_appointment_delete()
+        
+        # Slot Management Tests
+        print("   🎯 Slot Management Tests")
+        tester.test_slot_availability_after_booking()
+        tester.test_slot_availability_after_cancellation()
+    else:
+        print("   ❌ Failed to setup test data for appointment tests")
+    
     # Admin Tests (if we can create admin user)
     print("\n👑 Admin Tests")
     admin_success, _ = tester.test_user_registration("admin", "_admin")
