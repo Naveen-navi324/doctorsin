@@ -1141,6 +1141,10 @@ async def startup_db():
     await db.doctor_profiles.create_index("specializations")
     await db.doctor_profiles.create_index("clinic_info.city")
     await db.availability_slots.create_index([("doctor_id", 1), ("date", 1)])
+    await db.appointments.create_index([("patient_id", 1), ("appointment_date", 1)])
+    await db.appointments.create_index([("doctor_id", 1), ("appointment_date", 1)])
+    await db.appointments.create_index("availability_slot_id")
+    await db.appointments.create_index("status")
     logger.info("Database indexes created")
 
 @app.on_event("shutdown")
