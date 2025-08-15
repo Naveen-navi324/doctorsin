@@ -1826,6 +1826,20 @@ const AppointmentsList = ({ userRole }) => {
   );
 };
 
+// Appointments Page Wrapper
+const AppointmentsPage = () => {
+  const { user } = useAuth();
+  
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <AppointmentsList userRole={user?.role} />
+      </div>
+    </div>
+  );
+};
+
 // Dashboard Components
 const PatientDashboard = ({ user }) => {
   const [appointmentStats, setAppointmentStats] = useState({
