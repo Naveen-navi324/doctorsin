@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from './components/ui/avatar';
 import { Textarea } from './components/ui/textarea';
 import { Calendar } from './components/ui/calendar';
 import { Separator } from './components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
 import { 
@@ -39,7 +40,12 @@ import {
   BookOpen,
   Award,
   Stethoscope,
-  Building
+  Building,
+  X,
+  Check,
+  FileText,
+  CalendarCheck,
+  CalendarX
 } from 'lucide-react';
 import './App.css';
 
