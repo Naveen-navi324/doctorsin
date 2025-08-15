@@ -165,6 +165,18 @@ backend:
           agent: "main"
           comment: "Role-based dashboards for Patient, Doctor, and Admin users"
 
+  - task: "Appointment Booking System API"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Comprehensive appointment system with booking, status management, and role-based access. Includes endpoints for POST /api/appointments (booking), GET /api/appointments (list), GET /api/appointments/{id} (details), PUT /api/appointments/{id} (status updates), DELETE /api/appointments/{id} (cancellation). Features automatic slot management, validation, and user permission checks."
+
 frontend:
   - task: "Authentication UI"
     implemented: true
