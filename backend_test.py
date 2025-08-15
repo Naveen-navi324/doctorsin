@@ -654,6 +654,26 @@ def main():
     print("\n🔒 Role-Based Access Control Tests")
     tester.test_role_based_access_control()
     
+    # Doctor Profile Management Tests
+    print("\n👨‍⚕️ Doctor Profile Management Tests")
+    tester.test_patient_cannot_create_doctor_profile()
+    tester.test_create_doctor_profile()
+    tester.test_get_my_doctor_profile()
+    tester.test_update_doctor_profile()
+    tester.test_get_doctor_profile_by_id()
+    tester.test_get_all_doctors()
+    tester.test_get_doctors_with_filters()
+    
+    # Doctor Availability Management Tests
+    print("\n📅 Doctor Availability Management Tests")
+    tester.test_patient_cannot_create_availability()
+    tester.test_create_availability_slot()
+    tester.test_create_multiple_availability_slots()
+    tester.test_get_my_availability()
+    tester.test_get_doctor_availability_public()
+    tester.test_invalid_availability_slot()
+    tester.test_delete_availability_slot()
+    
     # Admin Tests (if we can create admin user)
     print("\n👑 Admin Tests")
     admin_success, _ = tester.test_user_registration("admin", "_admin")
