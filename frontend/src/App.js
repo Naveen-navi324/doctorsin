@@ -1305,6 +1305,8 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
 const DoctorDirectory = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const [filters, setFilters] = useState({
     specialization: '',
     city: '',
@@ -1337,6 +1339,16 @@ const DoctorDirectory = () => {
       city: '',
       consultation_type: ''
     });
+  };
+
+  const handleBookAppointment = (doctor) => {
+    setSelectedDoctor(doctor);
+    setShowBookingModal(true);
+  };
+
+  const handleBookingSuccess = () => {
+    // Refresh doctors list to get updated availability
+    fetchDoctors();
   };
 
   return (
