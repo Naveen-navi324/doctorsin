@@ -861,13 +861,24 @@ class HealthcareAPITester:
             print("❌ Failed to create unauthorized patient")
             return False, {}
         
-        return self.run_test(
+        # The token key will be 'patient' since that's how test_user_registration works
+        # We need to store the current patient token and use the new one
+        original_patient_token = self.tokens.get('patient')
+        unauthorized_token = self.tokens.get('patient')  # This will be the new patient's token
+        
+        result = self.run_test(
             "Get Appointment Details Unauthorized", 
             "GET", 
             f"appointments/{self.test_appointment_id}", 
             403, 
-            token=self.tokens['patient_unauthorized']
+            token=unauthorized_token
         )
+        
+        # Restore original patient token
+        if original_patient_token:
+            self.tokens['patient'] = original_patient_token
+            
+        return result
 
     def test_doctor_confirm_appointment(self):
         """Test doctor confirming appointment"""
