@@ -202,6 +202,67 @@ class AvailabilitySlotResponse(BaseModel):
     status: AvailabilityStatus
     created_at: datetime
 
+# Appointment Models
+class AppointmentBase(BaseModel):
+    doctor_id: str
+    availability_slot_id: str
+    consultation_type: ConsultationType
+    appointment_date: datetime
+    start_time: str
+    end_time: str
+    reason: Optional[str] = None
+    symptoms: Optional[str] = None
+    notes: Optional[str] = None
+
+class AppointmentCreate(AppointmentBase):
+    pass
+
+class Appointment(AppointmentBase):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    patient_id: str
+    status: AppointmentStatus = AppointmentStatus.PENDING
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    confirmed_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+
+class AppointmentResponse(BaseModel):
+    id: str
+    doctor_id: str
+    patient_id: str
+    availability_slot_id: str
+    consultation_type: ConsultationType
+    appointment_date: datetime
+    start_time: str
+    end_time: str
+    status: AppointmentStatus
+    reason: Optional[str] = None
+    symptoms: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    confirmed_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+    # Doctor info
+    doctor_name: Optional[str] = None
+    doctor_specializations: Optional[List[str]] = None
+    doctor_clinic_name: Optional[str] = None
+    doctor_clinic_address: Optional[str] = None
+    consultation_fee: Optional[float] = None
+    # Patient info
+    patient_name: Optional[str] = None
+    patient_email: Optional[str] = None
+    patient_phone: Optional[str] = None
+
+class AppointmentStatusUpdate(BaseModel):
+    status: AppointmentStatus
+    notes: Optional[str] = None
+    cancellation_reason: Optional[str] = None
+
 # Utility Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
