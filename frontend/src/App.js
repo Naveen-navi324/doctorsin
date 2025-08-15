@@ -994,6 +994,313 @@ const DoctorProfileManagement = () => {
   );
 };
 
+// Appointment Booking Modal Component
+const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
+  const { user } = useAuth();
+  const [availability, setAvailability] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [bookingForm, setBookingForm] = useState({
+    reason: '',
+    symptoms: '',
+    notes: ''
+  });
+  const [loading, setLoading] = useState(true);
+  const [booking, setBooking] = useState(false);
+  const [step, setStep] = useState(1); // 1: Select slot, 2: Fill details, 3: Confirm
+
+  useEffect(() => {
+    if (doctor) {
+      fetchDoctorAvailability();
+    }
+  }, [doctor]);
+
+  const fetchDoctorAvailability = async () => {
+    try {
+      const today = new Date();
+      const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      
+      const response = await axios.get(
+        `${API}/doctor/${doctor.user_id}/availability?start_date=${today.toISOString().split('T')[0]}&end_date=${nextWeek.toISOString().split('T')[0]}`
+      );
+      setAvailability(response.data);
+    } catch (error) {
+      toast.error('Error fetching doctor availability');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSlotSelection = (slot) => {
+    setSelectedSlot(slot);
+    setStep(2);
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedSlot) return;
+
+    setBooking(true);
+
+    try {
+      const appointmentData = {
+        doctor_id: doctor.user_id,
+        availability_slot_id: selectedSlot.id,
+        consultation_type: selectedSlot.consultation_type,
+        appointment_date: selectedSlot.date,
+        start_time: selectedSlot.start_time,
+        end_time: selectedSlot.end_time,
+        reason: bookingForm.reason,
+        symptoms: bookingForm.symptoms,
+        notes: bookingForm.notes
+      };
+
+      await axios.post(`${API}/appointments`, appointmentData);
+      
+      toast.success('Appointment booked successfully!');
+      onBookingSuccess();
+      onClose();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error booking appointment');
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatTime = (timeString) => {
+    return new Date(`1970-01-01T${timeString}:00`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getConsultationFee = () => {
+    if (selectedSlot?.consultation_type === 'online') {
+      return doctor.consultation_fee_online;
+    } else if (selectedSlot?.consultation_type === 'clinic') {
+      return doctor.consultation_fee_clinic;
+    }
+    return null;
+  };
+
+  if (!user || user.role !== 'patient') {
+    return (
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Login Required</DialogTitle>
+          <DialogDescription>
+            Please login as a patient to book appointments.
+          </DialogDescription>
+        </DialogHeader>
+        <Button onClick={onClose}>Close</Button>
+      </DialogContent>
+    );
+  }
+
+  return (
+    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle className="flex items-center">
+          <CalendarIcon className="h-6 w-6 mr-2 text-blue-600" />
+          Book Appointment with Dr. {doctor.user_name}
+        </DialogTitle>
+        <DialogDescription>
+          {step === 1 && "Select an available time slot"}
+          {step === 2 && "Provide appointment details"}
+          {step === 3 && "Confirm your appointment"}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="mt-4">
+        {/* Progress Indicators */}
+        <div className="flex items-center justify-center space-x-4 mb-6">
+          <div className={`flex items-center ${step >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 1 ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
+              1
+            </div>
+            <span className="ml-2 text-sm font-medium">Select Slot</span>
+          </div>
+          <div className={`w-8 h-1 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+          <div className={`flex items-center ${step >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 2 ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
+              2
+            </div>
+            <span className="ml-2 text-sm font-medium">Details</span>
+          </div>
+          <div className={`w-8 h-1 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+          <div className={`flex items-center ${step >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 3 ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
+              3
+            </div>
+            <span className="ml-2 text-sm font-medium">Confirm</span>
+          </div>
+        </div>
+
+        {/* Step 1: Slot Selection */}
+        {step === 1 && (
+          <div>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2">Available Time Slots</h3>
+              <p className="text-gray-600 text-sm">Select a convenient time slot from the available options below.</p>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Clock className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+                  <p className="text-gray-600">Loading availability...</p>
+                </div>
+              </div>
+            ) : availability.length === 0 ? (
+              <div className="text-center py-8">
+                <CalendarX className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Slots</h3>
+                <p className="text-gray-600">This doctor doesn't have any available slots in the next week.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {availability.map((slot) => (
+                  <Card 
+                    key={slot.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-blue-200"
+                    onClick={() => handleSlotSelection(slot)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <CalendarIcon className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium">{formatDate(slot.date)}</span>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <div className="flex items-center space-x-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{formatTime(slot.start_time)} - {formatTime(slot.end_time)}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {slot.consultation_type === 'online' ? '💻 Online' : 
+                               slot.consultation_type === 'clinic' ? '🏥 Clinic' : '🔄 Both'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-green-600">
+                            ${slot.consultation_type === 'online' ? doctor.consultation_fee_online : doctor.consultation_fee_clinic}
+                          </div>
+                          <Button size="sm" className="mt-2">
+                            Select Slot
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end mt-6">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Appointment Details */}
+        {step === 2 && selectedSlot && (
+          <div>
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Selected Time Slot</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Date:</span> {formatDate(selectedSlot.date)}
+                </div>
+                <div>
+                  <span className="font-medium">Time:</span> {formatTime(selectedSlot.start_time)} - {formatTime(selectedSlot.end_time)}
+                </div>
+                <div>
+                  <span className="font-medium">Type:</span> {selectedSlot.consultation_type}
+                </div>
+                <div>
+                  <span className="font-medium">Fee:</span> ${getConsultationFee()}
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reason">Reason for Visit *</Label>
+                <Input
+                  id="reason"
+                  placeholder="e.g., Regular checkup, Follow-up, Specific concern"
+                  value={bookingForm.reason}
+                  onChange={(e) => setBookingForm(prev => ({ ...prev, reason: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="symptoms">Current Symptoms (Optional)</Label>
+                <Textarea
+                  id="symptoms"
+                  placeholder="Describe any symptoms you're experiencing..."
+                  value={bookingForm.symptoms}
+                  onChange={(e) => setBookingForm(prev => ({ ...prev, symptoms: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any additional information for the doctor..."
+                  value={bookingForm.notes}
+                  onChange={(e) => setBookingForm(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-between pt-6">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setStep(1)}
+                >
+                  Back to Slots
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={!bookingForm.reason.trim() || booking}
+                  className="min-w-32"
+                >
+                  {booking ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Booking...
+                    </div>
+                  ) : (
+                    'Book Appointment'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </DialogContent>
+  );
+};
+
 // Doctor Directory Component
 const DoctorDirectory = () => {
   const [doctors, setDoctors] = useState([]);
