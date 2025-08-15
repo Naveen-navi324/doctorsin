@@ -1544,6 +1544,288 @@ const DoctorDirectory = () => {
   );
 };
 
+// Appointment Management Components
+const AppointmentCard = ({ appointment, userRole, onStatusUpdate, onCancel }) => {
+  const [updating, setUpdating] = useState(false);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'confirmed': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const formatTime = (timeString) => {
+    return new Date(`1970-01-01T${timeString}:00`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const handleStatusUpdate = async (newStatus, reason = null) => {
+    setUpdating(true);
+    try {
+      const updateData = { 
+        status: newStatus,
+        cancellation_reason: reason
+      };
+      
+      await axios.put(`${API}/appointments/${appointment.id}`, updateData);
+      toast.success(`Appointment ${newStatus} successfully!`);
+      onStatusUpdate();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || `Error updating appointment`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (window.confirm('Are you sure you want to cancel this appointment?')) {
+      await handleStatusUpdate('cancelled', 'Cancelled by user');
+    }
+  };
+
+  return (
+    <Card className="mb-4">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-blue-600 text-white">
+                  {userRole === 'patient' 
+                    ? appointment.doctor_name?.charAt(0).toUpperCase() || 'D'
+                    : appointment.patient_name?.charAt(0).toUpperCase() || 'P'
+                  }
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold text-lg">
+                  {userRole === 'patient' ? `Dr. ${appointment.doctor_name}` : appointment.patient_name}
+                </h3>
+                {appointment.doctor_specializations && appointment.doctor_specializations.length > 0 && (
+                  <p className="text-sm text-gray-600">
+                    {appointment.doctor_specializations.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4 text-gray-400" />
+                <span>{formatDate(appointment.appointment_date)}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-gray-400" />
+                <span>{formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline" className="text-xs">
+                  {appointment.consultation_type === 'online' ? '💻 Online' : '🏥 Clinic'}
+                </Badge>
+              </div>
+              {appointment.consultation_fee && (
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="h-4 w-4 text-gray-400" />
+                  <span>${appointment.consultation_fee}</span>
+                </div>
+              )}
+            </div>
+
+            {appointment.reason && (
+              <div className="mt-3">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Reason:</span> {appointment.reason}
+                </p>
+              </div>
+            )}
+
+            {appointment.symptoms && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Symptoms:</span> {appointment.symptoms}
+                </p>
+              </div>
+            )}
+
+            {appointment.notes && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Notes:</span> {appointment.notes}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="ml-6 flex flex-col items-end space-y-2">
+            <Badge className={`px-3 py-1 text-xs font-medium border ${getStatusColor(appointment.status)}`}>
+              {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+            </Badge>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-2">
+              {userRole === 'doctor' && appointment.status === 'pending' && (
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusUpdate('confirmed')}
+                  disabled={updating}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Confirm
+                </Button>
+              )}
+
+              {userRole === 'doctor' && appointment.status === 'confirmed' && (
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusUpdate('completed')}
+                  disabled={updating}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <CalendarCheck className="h-3 w-3 mr-1" />
+                  Complete
+                </Button>
+              )}
+
+              {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleCancel}
+                  disabled={updating}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const AppointmentsList = ({ userRole }) => {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all'); // all, upcoming, past
+
+  useEffect(() => {
+    fetchAppointments();
+  }, [filter]);
+
+  const fetchAppointments = async () => {
+    try {
+      let params = '';
+      if (filter === 'upcoming') {
+        const today = new Date().toISOString().split('T')[0];
+        params = `?start_date=${today}`;
+      } else if (filter === 'past') {
+        const today = new Date().toISOString().split('T')[0];
+        params = `?end_date=${today}`;
+      }
+
+      const response = await axios.get(`${API}/appointments${params}`);
+      setAppointments(response.data);
+    } catch (error) {
+      toast.error('Error fetching appointments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = () => {
+    fetchAppointments();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <CalendarIcon className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-600">Loading appointments...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">My Appointments</h2>
+        
+        {/* Filter Buttons */}
+        <div className="flex space-x-2">
+          <Button
+            variant={filter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('all')}
+          >
+            All
+          </Button>
+          <Button
+            variant={filter === 'upcoming' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('upcoming')}
+          >
+            Upcoming
+          </Button>
+          <Button
+            variant={filter === 'past' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('past')}
+          >
+            Past
+          </Button>
+        </div>
+      </div>
+
+      {appointments.length === 0 ? (
+        <div className="text-center py-12">
+          <CalendarX className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Appointments Found</h3>
+          <p className="text-gray-600">
+            {filter === 'all' 
+              ? "You don't have any appointments yet."
+              : filter === 'upcoming'
+              ? "You don't have any upcoming appointments."
+              : "You don't have any past appointments."
+            }
+          </p>
+        </div>
+      ) : (
+        <div>
+          {appointments.map((appointment) => (
+            <AppointmentCard
+              key={appointment.id}
+              appointment={appointment}
+              userRole={userRole}
+              onStatusUpdate={handleStatusUpdate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Dashboard Components
 const PatientDashboard = ({ user }) => {
   return (
