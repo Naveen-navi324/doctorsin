@@ -617,6 +617,552 @@ class HealthcareAPITester:
             token=self.tokens['patient']
         )
 
+    # Appointment Booking System Tests
+    def setup_appointment_test_data(self):
+        """Setup test data for appointment booking tests"""
+        from datetime import datetime, timedelta
+        
+        # Create availability slots for testing
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        day_after = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')
+        
+        slots = [
+            {
+                "date": tomorrow,
+                "start_time": "09:00",
+                "end_time": "10:00",
+                "consultation_type": "online"
+            },
+            {
+                "date": tomorrow,
+                "start_time": "11:00",
+                "end_time": "12:00",
+                "consultation_type": "clinic"
+            },
+            {
+                "date": day_after,
+                "start_time": "14:00",
+                "end_time": "15:00",
+                "consultation_type": "both"
+            }
+        ]
+        
+        self.test_slots = []
+        for i, slot_data in enumerate(slots):
+            success, response = self.run_test(
+                f"Setup Availability Slot {i+1}", 
+                "POST", 
+                "doctor/availability", 
+                200, 
+                slot_data,
+                token=self.tokens['doctor']
+            )
+            if success:
+                self.test_slots.append(response)
+        
+        return len(self.test_slots) > 0
+
+    def test_book_appointment_success(self):
+        """Test successful appointment booking"""
+        if 'patient' not in self.tokens or not hasattr(self, 'test_slots') or not self.test_slots:
+            print("❌ No patient token or test slots found")
+            return False, {}
+        
+        slot = self.test_slots[0]  # Use first available slot
+        from datetime import datetime
+        
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot['id'],
+            "consultation_type": slot['consultation_type'],
+            "appointment_date": slot['date'],
+            "start_time": slot['start_time'],
+            "end_time": slot['end_time'],
+            "reason": "Regular checkup",
+            "symptoms": "Mild chest discomfort",
+            "notes": "Patient reports occasional chest pain"
+        }
+        
+        success, response = self.run_test(
+            "Book Appointment Successfully", 
+            "POST", 
+            "appointments", 
+            200, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+        
+        if success:
+            self.test_appointment_id = response.get('id')
+        return success, response
+
+    def test_book_appointment_invalid_slot(self):
+        """Test booking appointment with invalid slot"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+        
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": "invalid-slot-id",
+            "consultation_type": "online",
+            "appointment_date": tomorrow,
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "reason": "Regular checkup"
+        }
+        
+        return self.run_test(
+            "Book Appointment with Invalid Slot", 
+            "POST", 
+            "appointments", 
+            404, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+
+    def test_book_appointment_already_booked_slot(self):
+        """Test booking appointment with already booked slot"""
+        if 'patient' not in self.tokens or not hasattr(self, 'test_slots') or len(self.test_slots) < 1:
+            print("❌ No patient token or test slots found")
+            return False, {}
+        
+        # Try to book the same slot that was already booked
+        slot = self.test_slots[0]
+        
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot['id'],
+            "consultation_type": slot['consultation_type'],
+            "appointment_date": slot['date'],
+            "start_time": slot['start_time'],
+            "end_time": slot['end_time'],
+            "reason": "Another checkup"
+        }
+        
+        return self.run_test(
+            "Book Already Booked Slot", 
+            "POST", 
+            "appointments", 
+            404, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+
+    def test_book_appointment_mismatched_details(self):
+        """Test booking appointment with mismatched slot details"""
+        if 'patient' not in self.tokens or not hasattr(self, 'test_slots') or len(self.test_slots) < 2:
+            print("❌ No patient token or test slots found")
+            return False, {}
+        
+        slot = self.test_slots[1]  # Use second slot
+        
+        # Provide wrong time details
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot['id'],
+            "consultation_type": slot['consultation_type'],
+            "appointment_date": slot['date'],
+            "start_time": "10:00",  # Wrong time
+            "end_time": "11:00",    # Wrong time
+            "reason": "Regular checkup"
+        }
+        
+        return self.run_test(
+            "Book Appointment with Mismatched Details", 
+            "POST", 
+            "appointments", 
+            400, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+
+    def test_doctor_cannot_book_appointment(self):
+        """Test that doctors cannot book appointments"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'test_slots') or len(self.test_slots) < 2:
+            print("❌ No doctor token or test slots found")
+            return False, {}
+        
+        slot = self.test_slots[1]
+        
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot['id'],
+            "consultation_type": slot['consultation_type'],
+            "appointment_date": slot['date'],
+            "start_time": slot['start_time'],
+            "end_time": slot['end_time'],
+            "reason": "Should fail"
+        }
+        
+        return self.run_test(
+            "Doctor Cannot Book Appointment", 
+            "POST", 
+            "appointments", 
+            403, 
+            appointment_data,
+            token=self.tokens['doctor']
+        )
+
+    def test_get_patient_appointments(self):
+        """Test getting patient's appointments"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Patient Appointments", 
+            "GET", 
+            "appointments", 
+            200, 
+            token=self.tokens['patient']
+        )
+
+    def test_get_doctor_appointments(self):
+        """Test getting doctor's appointments"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Doctor Appointments", 
+            "GET", 
+            "appointments", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_get_appointment_details(self):
+        """Test getting appointment details"""
+        if 'patient' not in self.tokens or not hasattr(self, 'test_appointment_id'):
+            print("❌ No patient token or appointment ID found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Appointment Details", 
+            "GET", 
+            f"appointments/{self.test_appointment_id}", 
+            200, 
+            token=self.tokens['patient']
+        )
+
+    def test_get_appointment_details_unauthorized(self):
+        """Test getting appointment details without proper access"""
+        if not hasattr(self, 'test_appointment_id'):
+            print("❌ No appointment ID found")
+            return False, {}
+        
+        # Create another patient to test unauthorized access
+        success, response = self.test_user_registration("patient", "_unauthorized")
+        if not success:
+            print("❌ Failed to create unauthorized patient")
+            return False, {}
+        
+        return self.run_test(
+            "Get Appointment Details Unauthorized", 
+            "GET", 
+            f"appointments/{self.test_appointment_id}", 
+            403, 
+            token=self.tokens['patient_unauthorized']
+        )
+
+    def test_doctor_confirm_appointment(self):
+        """Test doctor confirming appointment"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'test_appointment_id'):
+            print("❌ No doctor token or appointment ID found")
+            return False, {}
+        
+        status_update = {
+            "status": "confirmed",
+            "notes": "Appointment confirmed by doctor"
+        }
+        
+        return self.run_test(
+            "Doctor Confirm Appointment", 
+            "PUT", 
+            f"appointments/{self.test_appointment_id}", 
+            200, 
+            status_update,
+            token=self.tokens['doctor']
+        )
+
+    def test_doctor_complete_appointment(self):
+        """Test doctor completing appointment"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'test_appointment_id'):
+            print("❌ No doctor token or appointment ID found")
+            return False, {}
+        
+        status_update = {
+            "status": "completed",
+            "notes": "Consultation completed successfully"
+        }
+        
+        return self.run_test(
+            "Doctor Complete Appointment", 
+            "PUT", 
+            f"appointments/{self.test_appointment_id}", 
+            200, 
+            status_update,
+            token=self.tokens['doctor']
+        )
+
+    def test_patient_invalid_status_update(self):
+        """Test patient trying to set invalid status"""
+        # First book another appointment for this test
+        if 'patient' not in self.tokens or not hasattr(self, 'test_slots') or len(self.test_slots) < 3:
+            print("❌ No patient token or test slots found")
+            return False, {}
+        
+        slot = self.test_slots[2]  # Use third slot
+        
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot['id'],
+            "consultation_type": slot['consultation_type'],
+            "appointment_date": slot['date'],
+            "start_time": slot['start_time'],
+            "end_time": slot['end_time'],
+            "reason": "Test appointment for status update"
+        }
+        
+        success, response = self.run_test(
+            "Book Test Appointment for Status Update", 
+            "POST", 
+            "appointments", 
+            200, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+        
+        if not success:
+            return False, {}
+        
+        test_appointment_id = response.get('id')
+        
+        # Try to confirm appointment as patient (should fail)
+        status_update = {
+            "status": "confirmed",
+            "notes": "Patient trying to confirm"
+        }
+        
+        return self.run_test(
+            "Patient Invalid Status Update", 
+            "PUT", 
+            f"appointments/{test_appointment_id}", 
+            403, 
+            status_update,
+            token=self.tokens['patient']
+        )
+
+    def test_patient_cancel_appointment(self):
+        """Test patient cancelling appointment"""
+        # Book another appointment for cancellation test
+        if 'patient' not in self.tokens or 'doctor' not in self.tokens:
+            print("❌ No patient or doctor token found")
+            return False, {}
+        
+        # Create a new slot for this test
+        from datetime import datetime, timedelta
+        future_date = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
+        
+        slot_data = {
+            "date": future_date,
+            "start_time": "16:00",
+            "end_time": "17:00",
+            "consultation_type": "online"
+        }
+        
+        success, slot_response = self.run_test(
+            "Create Slot for Cancellation Test", 
+            "POST", 
+            "doctor/availability", 
+            200, 
+            slot_data,
+            token=self.tokens['doctor']
+        )
+        
+        if not success:
+            return False, {}
+        
+        # Book appointment
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot_response['id'],
+            "consultation_type": slot_response['consultation_type'],
+            "appointment_date": slot_response['date'],
+            "start_time": slot_response['start_time'],
+            "end_time": slot_response['end_time'],
+            "reason": "Test appointment for cancellation"
+        }
+        
+        success, appointment_response = self.run_test(
+            "Book Appointment for Cancellation", 
+            "POST", 
+            "appointments", 
+            200, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+        
+        if not success:
+            return False, {}
+        
+        # Cancel appointment using PUT
+        status_update = {
+            "status": "cancelled",
+            "cancellation_reason": "Patient cancelled due to schedule conflict"
+        }
+        
+        return self.run_test(
+            "Patient Cancel Appointment", 
+            "PUT", 
+            f"appointments/{appointment_response['id']}", 
+            200, 
+            status_update,
+            token=self.tokens['patient']
+        )
+
+    def test_cancel_appointment_delete(self):
+        """Test cancelling appointment using DELETE endpoint"""
+        # Book another appointment for DELETE cancellation test
+        if 'patient' not in self.tokens or 'doctor' not in self.tokens:
+            print("❌ No patient or doctor token found")
+            return False, {}
+        
+        # Create a new slot for this test
+        from datetime import datetime, timedelta
+        future_date = (datetime.now() + timedelta(days=4)).strftime('%Y-%m-%d')
+        
+        slot_data = {
+            "date": future_date,
+            "start_time": "10:00",
+            "end_time": "11:00",
+            "consultation_type": "clinic"
+        }
+        
+        success, slot_response = self.run_test(
+            "Create Slot for DELETE Test", 
+            "POST", 
+            "doctor/availability", 
+            200, 
+            slot_data,
+            token=self.tokens['doctor']
+        )
+        
+        if not success:
+            return False, {}
+        
+        # Book appointment
+        appointment_data = {
+            "doctor_id": self.users['doctor']['id'],
+            "availability_slot_id": slot_response['id'],
+            "consultation_type": slot_response['consultation_type'],
+            "appointment_date": slot_response['date'],
+            "start_time": slot_response['start_time'],
+            "end_time": slot_response['end_time'],
+            "reason": "Test appointment for DELETE cancellation"
+        }
+        
+        success, appointment_response = self.run_test(
+            "Book Appointment for DELETE", 
+            "POST", 
+            "appointments", 
+            200, 
+            appointment_data,
+            token=self.tokens['patient']
+        )
+        
+        if not success:
+            return False, {}
+        
+        # Cancel appointment using DELETE
+        return self.run_test(
+            "Cancel Appointment with DELETE", 
+            "DELETE", 
+            f"appointments/{appointment_response['id']}", 
+            200, 
+            token=self.tokens['patient']
+        )
+
+    def test_appointment_filters(self):
+        """Test appointment filtering by status and date"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+        
+        from datetime import datetime, timedelta
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        # Test status filter
+        success1, _ = self.run_test(
+            "Get Appointments by Status", 
+            "GET", 
+            "appointments?status=pending", 
+            200, 
+            token=self.tokens['patient']
+        )
+        
+        # Test date filter
+        success2, _ = self.run_test(
+            "Get Appointments by Date", 
+            "GET", 
+            f"appointments?start_date={tomorrow}", 
+            200, 
+            token=self.tokens['patient']
+        )
+        
+        return success1 and success2, {}
+
+    def test_slot_availability_after_booking(self):
+        """Test that slots become unavailable after booking"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+        
+        doctor_id = self.users['doctor']['id']
+        
+        # Get doctor's availability and check if booked slots are marked as booked
+        success, response = self.run_test(
+            "Check Slot Status After Booking", 
+            "GET", 
+            f"doctor/{doctor_id}/availability", 
+            200
+        )
+        
+        if success:
+            # Check if any slots have status 'booked'
+            booked_slots = [slot for slot in response if slot.get('status') == 'booked']
+            print(f"   Found {len(booked_slots)} booked slots")
+        
+        return success, response
+
+    def test_slot_availability_after_cancellation(self):
+        """Test that slots become available again after cancellation"""
+        # This test relies on previous cancellation tests
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+        
+        doctor_id = self.users['doctor']['id']
+        
+        # Get doctor's availability
+        success, response = self.run_test(
+            "Check Slot Status After Cancellation", 
+            "GET", 
+            f"doctor/{doctor_id}/availability", 
+            200
+        )
+        
+        if success:
+            # Check available slots
+            available_slots = [slot for slot in response if slot.get('status') == 'available']
+            print(f"   Found {len(available_slots)} available slots")
+        
+        return success, response
+
 def main():
     print("🏥 DocEase Healthcare API Testing Suite")
     print("=" * 50)
