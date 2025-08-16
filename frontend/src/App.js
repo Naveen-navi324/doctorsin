@@ -2131,52 +2131,7 @@ const DoctorDirectory = () => {
       </div>
     </PageTransition>
   );
-};
-                        {doctor.consultation_fee_clinic && (
-                          <div className="flex items-center space-x-2 text-sm">
-                            <DollarSign className="h-3 w-3 text-blue-600" />
-                            <span>Clinic: ${doctor.consultation_fee_clinic}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Consultation Types */}
-                    <div className="flex flex-wrap gap-1">
-                      {doctor.consultation_types.map((type, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {type === 'online' ? '💻 Online' : type === 'clinic' ? '🏥 Clinic' : '🔄 Both'}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    {/* Book Button */}
-                    <Button 
-                      className="w-full" 
-                      onClick={() => handleBookAppointment(doctor)}
-                    >
-                      <CalendarIcon className="h-4 w-4 mr-2" />
-                      Book Appointment
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Appointment Booking Modal */}
-      <Dialog open={showBookingModal} onOpenChange={setShowBookingModal}>
-        <AppointmentBookingModal
-          doctor={selectedDoctor}
-          onClose={() => setShowBookingModal(false)}
-          onBookingSuccess={handleBookingSuccess}
-        />
-      </Dialog>
-    </div>
-  );
-};
+;
 
 // Appointment Management Components
 const AppointmentCard = ({ appointment, userRole, onStatusUpdate, onCancel }) => {
