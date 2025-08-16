@@ -2408,92 +2408,262 @@ const HomePage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const features = [
+    {
+      icon: Search,
+      title: "Find Doctors",
+      description: "Search and connect with qualified doctors in your area",
+      color: "blue"
+    },
+    {
+      icon: CalendarIcon,
+      title: "Book Appointments", 
+      description: "Schedule appointments online with ease and convenience",
+      color: "green"
+    },
+    {
+      icon: Activity,
+      title: "Manage Health",
+      description: "Keep track of your health records and prescriptions", 
+      color: "purple"
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Navigation />
-      
-      <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="text-center space-y-8">
-          <div className="space-y-4">
-            <h1 className="text-5xl font-bold text-gray-900">
-              Your Health, Our Priority
-            </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Connect with trusted doctors, book appointments, manage prescriptions, 
-              and take control of your healthcare journey with DocEase.
-            </p>
+    <PageTransition>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 relative overflow-hidden">
+        {/* Animated Background Elements */}
+        <motion.div
+          className="absolute top-20 left-20 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-xl opacity-30"
+          animate={{
+            x: [0, 50, 0],
+            y: [0, -30, 0],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        <motion.div
+          className="absolute top-40 right-20 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30"
+          animate={{
+            x: [0, -50, 0],
+            y: [0, 30, 0],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        <motion.div
+          className="absolute -bottom-20 left-1/2 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-30"
+          animate={{
+            x: [0, 30, 0],
+            y: [0, -20, 0],
+          }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+        
+        <Navigation />
+        
+        <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
+          {/* Hero Section */}
+          <div className="text-center space-y-8">
+            <StaggerContainer className="space-y-6">
+              <StaggerItem>
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="flex justify-center mb-8"
+                >
+                  <div className="p-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-2xl">
+                    <Heart className="h-16 w-16 text-white" />
+                  </div>
+                </motion.div>
+              </StaggerItem>
+              
+              <StaggerItem>
+                <motion.h1 
+                  className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent leading-tight"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                >
+                  Your Health,
+                  <br />
+                  <motion.span
+                    animate={{ 
+                      backgroundPosition: ["0%", "100%", "0%"] 
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "linear"
+                    }}
+                    className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent bg-300% animate-gradient"
+                  >
+                    Our Priority
+                  </motion.span>
+                </motion.h1>
+              </StaggerItem>
+              
+              <StaggerItem>
+                <motion.p 
+                  className="text-xl md:text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                >
+                  Connect with trusted doctors, book appointments seamlessly, 
+                  manage prescriptions, and take control of your healthcare journey 
+                  with <span className="font-semibold text-blue-600">DocEase</span>.
+                </motion.p>
+              </StaggerItem>
+            </StaggerContainer>
+            
+            {/* Action Buttons */}
+            <motion.div 
+              className="flex flex-wrap justify-center gap-6 pt-8"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.6 }}
+            >
+              {user ? (
+                <AnimatedButton
+                  onClick={() => navigate('/dashboard')}
+                  className="px-10 py-4 text-xl font-semibold shadow-2xl"
+                  variant="primary"
+                >
+                  <Activity className="mr-3" size={24} />
+                  Go to Dashboard
+                </AnimatedButton>
+              ) : (
+                <>
+                  <AnimatedButton
+                    onClick={() => navigate('/auth')}
+                    className="px-10 py-4 text-xl font-semibold shadow-2xl"
+                    variant="primary"
+                  >
+                    <Heart className="mr-3" size={24} />
+                    Get Started
+                  </AnimatedButton>
+                  <AnimatedButton
+                    onClick={() => navigate('/doctors')}
+                    className="px-10 py-4 text-xl font-semibold shadow-xl"
+                    variant="secondary"
+                  >
+                    <Search className="mr-3" size={24} />
+                    Browse Doctors
+                  </AnimatedButton>
+                </>
+              )}
+            </motion.div>
           </div>
           
-          <div className="flex flex-wrap justify-center gap-4">
-            {user ? (
-              <Button 
-                size="lg" 
-                onClick={() => navigate('/dashboard')}
-                className="px-8 py-3 text-lg"
-              >
-                Go to Dashboard
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  size="lg" 
+          {/* Features Section */}
+          <motion.div 
+            className="mt-24"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.6 }}
+              className="text-center mb-16"
+            >
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Why Choose DocEase?
+              </h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                Experience healthcare like never before with our comprehensive platform
+              </p>
+            </motion.div>
+            
+            <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-8" delay={0.15}>
+              {features.map((feature, index) => {
+                const Icon = feature.icon;
+                const colorClasses = {
+                  blue: "from-blue-500 to-blue-600",
+                  green: "from-green-500 to-green-600", 
+                  purple: "from-purple-500 to-purple-600"
+                };
+                
+                return (
+                  <StaggerItem key={index}>
+                    <AnimatedCard className="text-center h-full bg-white/70 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl">
+                      <CardHeader className="pb-4">
+                        <motion.div
+                          className="flex justify-center mb-6"
+                          whileHover={{ 
+                            scale: 1.1,
+                            rotate: [0, -5, 5, 0]
+                          }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <div className={`p-4 bg-gradient-to-r ${colorClasses[feature.color]} rounded-2xl shadow-lg`}>
+                            <Icon className="h-12 w-12 text-white" />
+                          </div>
+                        </motion.div>
+                        <CardTitle className="text-2xl font-bold text-gray-900">
+                          {feature.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-gray-600 text-lg leading-relaxed">
+                          {feature.description}
+                        </p>
+                      </CardContent>
+                    </AnimatedCard>
+                  </StaggerItem>
+                );
+              })}
+            </StaggerContainer>
+          </motion.div>
+          
+          {/* Call to Action */}
+          {!user && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2, duration: 0.6 }}
+              className="text-center mt-20 p-8 bg-white/60 backdrop-blur-sm rounded-3xl shadow-xl"
+            >
+              <h3 className="text-3xl font-bold text-gray-900 mb-4">
+                Ready to Transform Your Healthcare Experience?
+              </h3>
+              <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+                Join thousands of patients and doctors who trust DocEase for their healthcare needs.
+              </p>
+              <div className="flex flex-wrap justify-center gap-4">
+                <AnimatedButton
                   onClick={() => navigate('/auth')}
-                  className="px-8 py-3 text-lg"
+                  className="px-8 py-3 text-lg font-semibold"
+                  variant="primary"
                 >
-                  Get Started
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="px-8 py-3 text-lg"
-                  onClick={() => navigate('/doctors')}
+                  Join as Patient
+                </AnimatedButton>
+                <AnimatedButton
+                  onClick={() => navigate('/auth')}
+                  className="px-8 py-3 text-lg font-semibold"
+                  variant="success"
                 >
-                  Browse Doctors
-                </Button>
-              </>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
-            <Card className="text-center">
-              <CardHeader>
-                <Search className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <CardTitle>Find Doctors</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Search and connect with qualified doctors in your area
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="text-center">
-              <CardHeader>
-                <CalendarIcon className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <CardTitle>Book Appointments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Schedule appointments online with ease and convenience
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="text-center">
-              <CardHeader>
-                <Activity className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <CardTitle>Manage Health</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Keep track of your health records and prescriptions
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                  Join as Doctor
+                </AnimatedButton>
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
-    </div>
+    </PageTransition>
   );
 };
 
