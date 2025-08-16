@@ -281,6 +281,66 @@ class AppointmentStatusUpdate(BaseModel):
     notes: Optional[str] = None
     cancellation_reason: Optional[str] = None
 
+# Chat Models
+class ChatMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    conversation_id: str
+    sender_id: str
+    receiver_id: str
+    message_type: MessageType
+    content: str
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    status: MessageStatus = MessageStatus.SENT
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    read_at: Optional[datetime] = None
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    conversation_id: str
+    sender_id: str
+    receiver_id: str
+    message_type: MessageType
+    content: str
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    status: MessageStatus
+    created_at: datetime
+    read_at: Optional[datetime] = None
+    # Sender info
+    sender_name: Optional[str] = None
+    sender_role: Optional[UserRole] = None
+
+class ChatConversation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    participants: List[str]  # List of user IDs
+    appointment_id: Optional[str] = None
+    last_message_id: Optional[str] = None
+    last_message_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+class ChatConversationResponse(BaseModel):
+    id: str
+    participants: List[str]
+    appointment_id: Optional[str] = None
+    last_message: Optional[ChatMessageResponse] = None
+    last_message_at: Optional[datetime] = None
+    unread_count: int = 0
+    created_at: datetime
+    is_active: bool
+    # Participant info
+    other_participant_name: Optional[str] = None
+    other_participant_role: Optional[UserRole] = None
+
+class SendMessageRequest(BaseModel):
+    receiver_id: str
+    message_type: MessageType = MessageType.TEXT
+    content: str
+    appointment_id: Optional[str] = None
+
 # Utility Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
