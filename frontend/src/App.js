@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
@@ -14,6 +15,47 @@ import { Separator } from './components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
+
+// Import our new animation components
+import { 
+  PageTransition, 
+  StaggerContainer, 
+  StaggerItem, 
+  AnimatedCard, 
+  AnimatedButton, 
+  AnimatedModal, 
+  AnimatedCounter,
+  FloatingButton 
+} from './components/animations/AnimatedComponents';
+import { 
+  SkeletonLoader, 
+  DoctorCardSkeleton, 
+  DashboardCardSkeleton, 
+  AppointmentCardSkeleton, 
+  LoadingSpinner, 
+  PageLoader 
+} from './components/animations/LoadingStates';
+import { 
+  AnimatedInput, 
+  StepProgress, 
+  AnimatedForm, 
+  AnimatedSelect 
+} from './components/animations/FormAnimations';
+import { 
+  AnimatedStatCard, 
+  AnimatedChart, 
+  QuickActionButton, 
+  ActivityItem, 
+  WelcomeHeader, 
+  FloatingWidget 
+} from './components/animations/DashboardAnimations';
+import { 
+  AnimatedAppointmentCard, 
+  AnimatedTimeSlot, 
+  BookingProgress, 
+  DoctorRating, 
+  ConsultationTypeSelector 
+} from './components/animations/AppointmentAnimations';
 import { 
   User, 
   Mail, 
