@@ -341,6 +341,37 @@ class SendMessageRequest(BaseModel):
     content: str
     appointment_id: Optional[str] = None
 
+# WebSocket Connection Manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+    
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+        logger.info(f"User {user_id} connected to chat")
+    
+    def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+            logger.info(f"User {user_id} disconnected from chat")
+    
+    async def send_personal_message(self, message: dict, user_id: str):
+        if user_id in self.active_connections:
+            try:
+                await self.active_connections[user_id].send_text(json.dumps(message))
+                return True
+            except Exception as e:
+                logger.error(f"Error sending message to {user_id}: {e}")
+                self.disconnect(user_id)
+        return False
+
+manager = ConnectionManager()
+
+# Create uploads directory
+UPLOADS_DIR = Path("uploads")
+UPLOADS_DIR.mkdir(exist_ok=True)
+
 # Utility Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
