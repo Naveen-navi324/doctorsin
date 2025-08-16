@@ -76,6 +76,16 @@ class AppointmentStatus(str, Enum):
     CANCELLED = "cancelled"
     RESCHEDULED = "rescheduled"
 
+class MessageType(str, Enum):
+    TEXT = "text"
+    FILE = "file"
+    IMAGE = "image"
+
+class MessageStatus(str, Enum):
+    SENT = "sent"
+    DELIVERED = "delivered"
+    READ = "read"
+
 # Base User Models
 class UserBase(BaseModel):
     email: EmailStr
