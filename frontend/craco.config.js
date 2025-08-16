@@ -12,6 +12,14 @@ module.exports = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // Suppress webpack dev server deprecation warnings
+      if (webpackConfig.devServer) {
+        webpackConfig.devServer.onBeforeSetupMiddleware = undefined;
+        webpackConfig.devServer.onAfterSetupMiddleware = undefined;
+        webpackConfig.devServer.setupMiddlewares = (middlewares, devServer) => {
+          return middlewares;
+        };
+      }
       
       // Disable hot reload completely if environment variable is set
       if (config.disableHotReload) {
