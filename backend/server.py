@@ -164,6 +164,9 @@ class DoctorProfileResponse(BaseModel):
     # Include user info
     user_name: Optional[str] = None
     user_email: Optional[str] = None
+    # New fields for enhanced search
+    distance: Optional[float] = None  # Distance from user location
+    has_current_availability: Optional[bool] = None  # Has slots available soon
 
 # Availability Models
 class TimeSlot(BaseModel):
