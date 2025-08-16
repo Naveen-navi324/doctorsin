@@ -1479,6 +1479,372 @@ class HealthcareAPITester:
         
         return success, response
 
+    # Real-time Chat System Tests
+    def test_send_text_message(self):
+        """Test sending a text message between users"""
+        if 'patient' not in self.tokens or 'doctor' not in self.tokens:
+            print("❌ Need both patient and doctor tokens for chat test")
+            return False, {}
+        
+        message_data = {
+            "receiver_id": self.users['doctor']['id'],
+            "message_type": "text",
+            "content": "Hello Doctor, I have a question about my appointment."
+        }
+        
+        success, response = self.run_test(
+            "Send Text Message (Patient to Doctor)", 
+            "POST", 
+            "chat/send", 
+            200, 
+            message_data,
+            token=self.tokens['patient']
+        )
+        
+        if success:
+            self.test_message_id = response.get('id')
+            self.test_conversation_id = response.get('conversation_id')
+        return success, response
+
+    def test_send_reply_message(self):
+        """Test doctor replying to patient message"""
+        if 'doctor' not in self.tokens or 'patient' not in self.users:
+            print("❌ Need doctor token and patient user for reply test")
+            return False, {}
+        
+        reply_data = {
+            "receiver_id": self.users['patient']['id'],
+            "message_type": "text",
+            "content": "Hello! I'd be happy to help. What's your question?"
+        }
+        
+        return self.run_test(
+            "Send Reply Message (Doctor to Patient)", 
+            "POST", 
+            "chat/send", 
+            200, 
+            reply_data,
+            token=self.tokens['doctor']
+        )
+
+    def test_upload_file_message(self):
+        """Test uploading and sending a file message"""
+        if 'patient' not in self.tokens or 'doctor' not in self.users:
+            print("❌ Need patient token and doctor user for file upload test")
+            return False, {}
+        
+        # Create a test file in memory
+        test_file_content = b"This is a test medical report file content."
+        
+        # Prepare multipart form data
+        files = {
+            'file': ('test_report.txt', io.BytesIO(test_file_content), 'text/plain')
+        }
+        
+        data = {
+            'receiver_id': self.users['doctor']['id']
+        }
+        
+        # Custom request for file upload
+        url = f"{self.api_url}/chat/upload"
+        headers = {'Authorization': f'Bearer {self.tokens["patient"]}'}
+        
+        self.tests_run += 1
+        print(f"\n🔍 Testing Upload File Message...")
+        print(f"   URL: {url}")
+        print(f"   Method: POST")
+        print(f"   File: test_report.txt")
+        
+        try:
+            response = requests.post(url, files=files, data=data, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                try:
+                    response_data = response.json()
+                    print(f"   Response: {json.dumps(response_data, indent=2, default=str)}")
+                    return True, response_data
+                except:
+                    return True, {}
+            else:
+                print(f"❌ Failed - Expected 200, got {response.status_code}")
+                try:
+                    error_data = response.json()
+                    print(f"   Error: {json.dumps(error_data, indent=2)}")
+                except:
+                    print(f"   Error: {response.text}")
+                return False, {}
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False, {}
+
+    def test_upload_image_message(self):
+        """Test uploading and sending an image message"""
+        if 'doctor' not in self.tokens or 'patient' not in self.users:
+            print("❌ Need doctor token and patient user for image upload test")
+            return False, {}
+        
+        # Create a simple test image (1x1 pixel PNG)
+        test_image_content = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\nIDATx\x9cc\xf8\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00IEND\xaeB`\x82'
+        
+        files = {
+            'file': ('test_xray.png', io.BytesIO(test_image_content), 'image/png')
+        }
+        
+        data = {
+            'receiver_id': self.users['patient']['id']
+        }
+        
+        url = f"{self.api_url}/chat/upload"
+        headers = {'Authorization': f'Bearer {self.tokens["doctor"]}'}
+        
+        self.tests_run += 1
+        print(f"\n🔍 Testing Upload Image Message...")
+        print(f"   URL: {url}")
+        print(f"   Method: POST")
+        print(f"   File: test_xray.png")
+        
+        try:
+            response = requests.post(url, files=files, data=data, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                try:
+                    response_data = response.json()
+                    print(f"   Response: {json.dumps(response_data, indent=2, default=str)}")
+                    return True, response_data
+                except:
+                    return True, {}
+            else:
+                print(f"❌ Failed - Expected 200, got {response.status_code}")
+                try:
+                    error_data = response.json()
+                    print(f"   Error: {json.dumps(error_data, indent=2)}")
+                except:
+                    print(f"   Error: {response.text}")
+                return False, {}
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False, {}
+
+    def test_get_conversations(self):
+        """Test getting user's conversation list"""
+        if 'patient' not in self.tokens:
+            print("❌ No patient token found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Patient Conversations", 
+            "GET", 
+            "chat/conversations", 
+            200, 
+            token=self.tokens['patient']
+        )
+
+    def test_get_doctor_conversations(self):
+        """Test getting doctor's conversation list"""
+        if 'doctor' not in self.tokens:
+            print("❌ No doctor token found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Doctor Conversations", 
+            "GET", 
+            "chat/conversations", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_get_conversation_messages(self):
+        """Test getting messages for a specific conversation"""
+        if 'patient' not in self.tokens or not hasattr(self, 'test_conversation_id'):
+            print("❌ No patient token or conversation ID found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Conversation Messages", 
+            "GET", 
+            f"chat/messages/{self.test_conversation_id}", 
+            200, 
+            token=self.tokens['patient']
+        )
+
+    def test_get_conversation_messages_with_pagination(self):
+        """Test getting messages with pagination"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'test_conversation_id'):
+            print("❌ No doctor token or conversation ID found")
+            return False, {}
+        
+        return self.run_test(
+            "Get Messages with Pagination", 
+            "GET", 
+            f"chat/messages/{self.test_conversation_id}?limit=10&offset=0", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_mark_message_as_read(self):
+        """Test marking a specific message as read"""
+        if 'doctor' not in self.tokens or not hasattr(self, 'test_message_id'):
+            print("❌ No doctor token or message ID found")
+            return False, {}
+        
+        return self.run_test(
+            "Mark Message as Read", 
+            "PUT", 
+            f"chat/messages/{self.test_message_id}/read", 
+            200, 
+            token=self.tokens['doctor']
+        )
+
+    def test_websocket_connection(self):
+        """Test WebSocket connection for real-time chat"""
+        if 'patient' not in self.users:
+            print("❌ No patient user found for WebSocket test")
+            return False, {}
+        
+        # WebSocket URL
+        ws_url = f"wss://repo-explorer-64.preview.emergentagent.com/ws/chat/{self.users['patient']['id']}"
+        
+        self.tests_run += 1
+        print(f"\n🔍 Testing WebSocket Connection...")
+        print(f"   URL: {ws_url}")
+        
+        try:
+            # Simple WebSocket connection test using websocket-client
+            import websocket
+            
+            def on_message(ws, message):
+                print(f"   📨 Received: {message}")
+                self.websocket_message_received = True
+            
+            def on_error(ws, error):
+                print(f"   ❌ WebSocket Error: {error}")
+                self.websocket_error = True
+            
+            def on_close(ws, close_status_code, close_msg):
+                print(f"   🔌 WebSocket Closed")
+                self.websocket_closed = True
+            
+            def on_open(ws):
+                print(f"   ✅ WebSocket Connected")
+                self.websocket_connected = True
+                # Close after successful connection
+                ws.close()
+            
+            # Initialize flags
+            self.websocket_connected = False
+            self.websocket_message_received = False
+            self.websocket_error = False
+            self.websocket_closed = False
+            
+            # Create WebSocket connection
+            ws = websocket.WebSocketApp(ws_url,
+                                      on_open=on_open,
+                                      on_message=on_message,
+                                      on_error=on_error,
+                                      on_close=on_close)
+            
+            # Run WebSocket in a separate thread with timeout
+            def run_websocket():
+                ws.run_forever()
+            
+            ws_thread = threading.Thread(target=run_websocket)
+            ws_thread.daemon = True
+            ws_thread.start()
+            
+            # Wait for connection or timeout
+            timeout = 10  # 10 seconds
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if self.websocket_connected or self.websocket_error:
+                    break
+                time.sleep(0.1)
+            
+            if self.websocket_connected:
+                self.tests_passed += 1
+                print(f"✅ Passed - WebSocket connection successful")
+                return True, {}
+            else:
+                print(f"❌ Failed - WebSocket connection failed or timed out")
+                return False, {}
+                
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False, {}
+
+    def test_chat_role_based_access(self):
+        """Test that chat respects role-based access control"""
+        all_success = True
+        
+        # Test that patient can send to doctor
+        if 'patient' in self.tokens and 'doctor' in self.users:
+            message_data = {
+                "receiver_id": self.users['doctor']['id'],
+                "message_type": "text",
+                "content": "Patient to Doctor message for RBAC test"
+            }
+            
+            success, _ = self.run_test(
+                "RBAC Test - Patient to Doctor", 
+                "POST", 
+                "chat/send", 
+                200, 
+                message_data,
+                token=self.tokens['patient']
+            )
+            all_success = all_success and success
+        
+        # Test that doctor can send to patient
+        if 'doctor' in self.tokens and 'patient' in self.users:
+            message_data = {
+                "receiver_id": self.users['patient']['id'],
+                "message_type": "text",
+                "content": "Doctor to Patient message for RBAC test"
+            }
+            
+            success, _ = self.run_test(
+                "RBAC Test - Doctor to Patient", 
+                "POST", 
+                "chat/send", 
+                200, 
+                message_data,
+                token=self.tokens['doctor']
+            )
+            all_success = all_success and success
+        
+        return all_success, {}
+
+    def test_chat_integration_with_appointments(self):
+        """Test chat system integration with appointment system"""
+        if ('patient' not in self.tokens or 'doctor' not in self.users or 
+            not hasattr(self, 'test_appointment_id')):
+            print("❌ Need patient token, doctor user, and appointment ID for integration test")
+            return False, {}
+        
+        # Send message with appointment context
+        message_data = {
+            "receiver_id": self.users['doctor']['id'],
+            "message_type": "text",
+            "content": "I have questions about my appointment scheduled for tomorrow.",
+            "appointment_id": self.test_appointment_id
+        }
+        
+        success, response = self.run_test(
+            "Chat-Appointment Integration Test", 
+            "POST", 
+            "chat/send", 
+            200, 
+            message_data,
+            token=self.tokens['patient']
+        )
+        
+        return success, response
+
 def main():
     print("🏥 DocEase Healthcare API Testing Suite")
     print("=" * 50)
