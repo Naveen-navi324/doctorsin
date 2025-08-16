@@ -1235,9 +1235,9 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
 
   const getConsultationFee = () => {
     if (selectedSlot?.consultation_type === 'online') {
-      return doctor.consultation_fee_online;
+      return doctor?.consultation_fee_online;
     } else if (selectedSlot?.consultation_type === 'clinic') {
-      return doctor.consultation_fee_clinic;
+      return doctor?.consultation_fee_clinic;
     }
     return null;
   };
