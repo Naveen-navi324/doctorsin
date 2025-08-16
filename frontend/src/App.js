@@ -290,17 +290,40 @@ const AuthPage = () => {
     age: ''
   });
   const [loading, setLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   const handleInputChange = (e) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
+    // Clear error when user starts typing
+    if (formErrors[e.target.name]) {
+      setFormErrors(prev => ({ ...prev, [e.target.name]: '' }));
+    }
+  };
+
+  const validateForm = (isLogin = true) => {
+    const errors = {};
+    if (!formData.email) errors.email = 'Email is required';
+    if (!formData.password) errors.password = 'Password is required';
+    if (!isLogin) {
+      if (!formData.name) errors.name = 'Name is required';
+      if (formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
+    }
+    return errors;
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    const errors = validateForm(true);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
     setLoading(true);
+    setFormErrors({});
     
     const result = await login(formData.email, formData.password);
     
@@ -313,7 +336,14 @@ const AuthPage = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    const errors = validateForm(false);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
     setLoading(true);
+    setFormErrors({});
     
     const registerData = {
       ...formData,
@@ -329,150 +359,228 @@ const AuthPage = () => {
     setLoading(false);
   };
 
+  const roleOptions = [
+    { value: 'patient', label: 'Patient' },
+    { value: 'doctor', label: 'Doctor' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Heart className="h-12 w-12 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Welcome to DocEase
-          </CardTitle>
-          <CardDescription>
-            Your trusted healthcare companion
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login" className="space-y-4">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Logging in...' : 'Login'}
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="register" className="space-y-4">
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="John Doe"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="role">I am a</Label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="patient">Patient</option>
-                    <option value="doctor">Doctor</option>
-                  </select>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone (Optional)</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      placeholder="+1234567890"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                    />
+    <PageTransition>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <AnimatedCard className="w-full max-w-md bg-white/80 backdrop-blur-sm border-0 shadow-2xl">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <CardHeader className="text-center pb-2">
+                <motion.div 
+                  className="flex justify-center mb-4"
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                  <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full">
+                    <Heart className="h-8 w-8 text-white" />
                   </div>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Welcome to DocEase
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-2">
+                    Your trusted healthcare companion
+                  </CardDescription>
+                </motion.div>
+              </CardHeader>
+            </motion.div>
+            
+            <CardContent className="pt-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="login" className="text-sm font-medium">Login</TabsTrigger>
+                    <TabsTrigger value="register" className="text-sm font-medium">Register</TabsTrigger>
+                  </TabsList>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Age (Optional)</Label>
-                    <Input
-                      id="age"
-                      name="age"
-                      type="number"
-                      placeholder="25"
-                      value={formData.age}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                </div>
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Creating Account...' : 'Create Account'}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+                  <AnimatePresence mode="wait">
+                    <TabsContent value="login" key="login">
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <AnimatedForm onSubmit={handleLogin} className="space-y-6">
+                          <StaggerContainer className="space-y-4">
+                            <StaggerItem>
+                              <AnimatedInput
+                                label="Email Address"
+                                name="email"
+                                type="email"
+                                placeholder="your@email.com"
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                error={formErrors.email}
+                                icon={Mail}
+                                required
+                              />
+                            </StaggerItem>
+                            
+                            <StaggerItem>
+                              <AnimatedInput
+                                label="Password"
+                                name="password"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={formData.password}
+                                onChange={handleInputChange}
+                                error={formErrors.password}
+                                required
+                              />
+                            </StaggerItem>
+                          </StaggerContainer>
+                          
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                          >
+                            <AnimatedButton 
+                              type="submit" 
+                              className="w-full py-3 text-lg"
+                              loading={loading}
+                              variant="primary"
+                            >
+                              <User className="mr-2" size={18} />
+                              Login to DocEase
+                            </AnimatedButton>
+                          </motion.div>
+                        </AnimatedForm>
+                      </motion.div>
+                    </TabsContent>
+                    
+                    <TabsContent value="register" key="register">
+                      <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <AnimatedForm onSubmit={handleRegister} className="space-y-4">
+                          <StaggerContainer className="space-y-4" delay={0.05}>
+                            <StaggerItem>
+                              <AnimatedInput
+                                label="Full Name"
+                                name="name"
+                                placeholder="John Doe"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                error={formErrors.name}
+                                icon={User}
+                                required
+                              />
+                            </StaggerItem>
+                            
+                            <StaggerItem>
+                              <AnimatedInput
+                                label="Email Address"
+                                name="email"
+                                type="email"
+                                placeholder="your@email.com"
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                error={formErrors.email}
+                                icon={Mail}
+                                required
+                              />
+                            </StaggerItem>
+                            
+                            <StaggerItem>
+                              <AnimatedInput
+                                label="Password"
+                                name="password"
+                                type="password"
+                                placeholder="Create a secure password"
+                                value={formData.password}
+                                onChange={handleInputChange}
+                                error={formErrors.password}
+                                required
+                              />
+                            </StaggerItem>
+                            
+                            <StaggerItem>
+                              <AnimatedSelect
+                                label="I am a"
+                                options={roleOptions}
+                                value={formData.role}
+                                onChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                                placeholder="Select your role"
+                              />
+                            </StaggerItem>
+                            
+                            <StaggerItem>
+                              <div className="grid grid-cols-2 gap-4">
+                                <AnimatedInput
+                                  label="Phone (Optional)"
+                                  name="phone"
+                                  placeholder="+1234567890"
+                                  value={formData.phone}
+                                  onChange={handleInputChange}
+                                  icon={Phone}
+                                />
+                                
+                                <AnimatedInput
+                                  label="Age (Optional)"
+                                  name="age"
+                                  type="number"
+                                  placeholder="25"
+                                  value={formData.age}
+                                  onChange={handleInputChange}
+                                />
+                              </div>
+                            </StaggerItem>
+                          </StaggerContainer>
+                          
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.6 }}
+                          >
+                            <AnimatedButton 
+                              type="submit" 
+                              className="w-full py-3 text-lg"
+                              loading={loading}
+                              variant="success"
+                            >
+                              <Heart className="mr-2" size={18} />
+                              Join DocEase
+                            </AnimatedButton>
+                          </motion.div>
+                        </AnimatedForm>
+                      </motion.div>
+                    </TabsContent>
+                  </AnimatePresence>
+                </Tabs>
+              </motion.div>
+            </CardContent>
+          </AnimatedCard>
+        </motion.div>
+      </div>
+    </PageTransition>
   );
 };
 
