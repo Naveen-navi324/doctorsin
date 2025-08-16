@@ -424,7 +424,7 @@ const ChatSystem = ({
                                 </CardContent>
                             )}
                         </Card>
-                    </div>
+                    </motion.div>
 
                     {/* Hidden File Input */}
                     <input
