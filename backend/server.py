@@ -1751,6 +1751,12 @@ async def startup_db():
     await db.appointments.create_index([("doctor_id", 1), ("appointment_date", 1)])
     await db.appointments.create_index("availability_slot_id")
     await db.appointments.create_index("status")
+    # Chat indexes
+    await db.chat_conversations.create_index("participants")
+    await db.chat_conversations.create_index([("last_message_at", -1)])
+    await db.chat_messages.create_index("conversation_id")
+    await db.chat_messages.create_index([("conversation_id", 1), ("created_at", 1)])
+    await db.chat_messages.create_index([("receiver_id", 1), ("status", 1)])
     logger.info("Database indexes created")
 
 @app.on_event("shutdown")
