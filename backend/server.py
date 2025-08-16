@@ -651,6 +651,101 @@ async def get_all_doctors(
     
     return paginated_results
 
+@api_router.get("/doctors/filter-counts")
+async def get_doctor_filter_counts(
+    specialization: Optional[str] = None,
+    city: Optional[str] = None,
+    consultation_type: Optional[ConsultationType] = None,
+    search: Optional[str] = None,
+):
+    """Get count of doctors for each filter option"""
+    base_query = {}
+    
+    # Apply current filters to get filtered base
+    if specialization:
+        base_query["specializations"] = {"$in": [specialization]}
+    if city:
+        base_query["clinic_info.city"] = {"$regex": city, "$options": "i"}
+    if consultation_type:
+        base_query["consultation_types"] = {"$in": [consultation_type]}
+    if search:
+        search_pattern = {"$regex": search, "$options": "i"}
+        base_query["$or"] = [
+            {"specializations": search_pattern},
+            {"qualifications": search_pattern},
+            {"clinic_info.name": search_pattern},
+            {"bio": search_pattern}
+        ]
+    
+    # Get all matching profiles
+    profiles = await db.doctor_profiles.find(base_query).to_list(None)
+    
+    # Count specializations
+    specialization_counts = {}
+    city_counts = {}
+    consultation_type_counts = {"online": 0, "clinic": 0, "both": 0}
+    
+    for profile in profiles:
+        # Count specializations
+        for spec in profile.get("specializations", []):
+            specialization_counts[spec] = specialization_counts.get(spec, 0) + 1
+        
+        # Count cities
+        city_name = profile.get("clinic_info", {}).get("city")
+        if city_name:
+            city_counts[city_name] = city_counts.get(city_name, 0) + 1
+        
+        # Count consultation types
+        for ctype in profile.get("consultation_types", []):
+            consultation_type_counts[ctype] = consultation_type_counts.get(ctype, 0) + 1
+    
+    return {
+        "total_doctors": len(profiles),
+        "specializations": dict(sorted(specialization_counts.items(), key=lambda x: x[1], reverse=True)[:10]),
+        "cities": dict(sorted(city_counts.items(), key=lambda x: x[1], reverse=True)[:10]),
+        "consultation_types": consultation_type_counts,
+        "experience_ranges": {
+            "0-5 years": len([p for p in profiles if (p.get("experience_years") or 0) <= 5]),
+            "6-10 years": len([p for p in profiles if 5 < (p.get("experience_years") or 0) <= 10]),
+            "11-20 years": len([p for p in profiles if 10 < (p.get("experience_years") or 0) <= 20]),
+            "20+ years": len([p for p in profiles if (p.get("experience_years") or 0) > 20])
+        }
+    }
+
+@api_router.get("/doctors/suggestions")
+async def get_search_suggestions(query: str):
+    """Get search suggestions for auto-complete"""
+    if len(query) < 2:
+        return {"suggestions": []}
+    
+    search_pattern = {"$regex": f"^{query}", "$options": "i"}
+    
+    # Get suggestions from specializations and cities
+    profiles = await db.doctor_profiles.find({}).to_list(None)
+    
+    suggestions = set()
+    
+    # Collect specializations
+    for profile in profiles:
+        for spec in profile.get("specializations", []):
+            if query.lower() in spec.lower():
+                suggestions.add(spec)
+    
+    # Collect cities
+    for profile in profiles:
+        city = profile.get("clinic_info", {}).get("city", "")
+        if query.lower() in city.lower():
+            suggestions.add(city)
+    
+    # Collect doctor names
+    users = await db.users.find({"role": "doctor"}).to_list(None)
+    for user in users:
+        name = user.get("name", "")
+        if query.lower() in name.lower():
+            suggestions.add(f"Dr. {name}")
+    
+    return {"suggestions": sorted(list(suggestions))[:10]}
+
 # Availability Routes
 @api_router.post("/doctor/availability", response_model=AvailabilitySlotResponse)
 async def create_availability_slot(
