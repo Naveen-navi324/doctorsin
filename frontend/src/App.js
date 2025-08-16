@@ -1358,7 +1358,7 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-semibold text-green-600">
-                            ${slot.consultation_type === 'online' ? doctor.consultation_fee_online : doctor.consultation_fee_clinic}
+                            ${slot.consultation_type === 'online' ? doctor?.consultation_fee_online : doctor?.consultation_fee_clinic}
                           </div>
                           <Button size="sm" className="mt-2">
                             Select Slot
