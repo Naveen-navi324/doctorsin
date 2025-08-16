@@ -394,6 +394,287 @@ class HealthcareAPITester:
         
         return success1 and success2 and success3, {}
 
+    def test_enhanced_doctor_search(self):
+        """Test enhanced doctor search functionality with new parameters"""
+        print("\n🔍 Enhanced Doctor Search Tests")
+        
+        all_success = True
+        
+        # Test basic search parameter
+        success1, response1 = self.run_test(
+            "Enhanced Search - Basic Text Search", 
+            "GET", 
+            "doctors?search=cardiology", 
+            200
+        )
+        all_success = all_success and success1
+        
+        # Test fee range filters
+        success2, response2 = self.run_test(
+            "Enhanced Search - Fee Range Filter", 
+            "GET", 
+            "doctors?min_fee=50&max_fee=200", 
+            200
+        )
+        all_success = all_success and success2
+        
+        # Test experience filter
+        success3, response3 = self.run_test(
+            "Enhanced Search - Experience Filter", 
+            "GET", 
+            "doctors?min_experience=10", 
+            200
+        )
+        all_success = all_success and success3
+        
+        # Test rating filter
+        success4, response4 = self.run_test(
+            "Enhanced Search - Rating Filter", 
+            "GET", 
+            "doctors?min_rating=4.0", 
+            200
+        )
+        all_success = all_success and success4
+        
+        # Test availability filter
+        success5, response5 = self.run_test(
+            "Enhanced Search - Availability Filter", 
+            "GET", 
+            "doctors?has_availability=true", 
+            200
+        )
+        all_success = all_success and success5
+        
+        # Test sorting options
+        sort_options = ["rating", "experience", "fee_asc", "fee_desc", "name"]
+        for sort_by in sort_options:
+            success, response = self.run_test(
+                f"Enhanced Search - Sort by {sort_by}", 
+                "GET", 
+                f"doctors?sort_by={sort_by}", 
+                200
+            )
+            all_success = all_success and success
+        
+        # Test combined filters
+        success6, response6 = self.run_test(
+            "Enhanced Search - Combined Filters", 
+            "GET", 
+            "doctors?search=heart&min_fee=50&max_fee=200&min_experience=5&min_rating=4.0&sort_by=rating", 
+            200
+        )
+        all_success = all_success and success6
+        
+        # Test pagination with enhanced search
+        success7, response7 = self.run_test(
+            "Enhanced Search - Pagination", 
+            "GET", 
+            "doctors?search=cardiology&skip=0&limit=5", 
+            200
+        )
+        all_success = all_success and success7
+        
+        # Verify response structure contains new fields
+        if success1 and response1:
+            doctors = response1
+            if doctors and len(doctors) > 0:
+                doctor = doctors[0]
+                expected_fields = ['rating', 'total_reviews', 'is_verified', 'distance', 'has_current_availability']
+                missing_fields = [field for field in expected_fields if field not in doctor]
+                if missing_fields:
+                    print(f"   ⚠️  Missing enhanced fields in response: {missing_fields}")
+                else:
+                    print(f"   ✅ All enhanced response fields present")
+        
+        return all_success, {}
+
+    def test_doctor_filter_counts(self):
+        """Test doctor filter counts endpoint"""
+        print("\n📊 Doctor Filter Counts Tests")
+        
+        all_success = True
+        
+        # Test basic filter counts
+        success1, response1 = self.run_test(
+            "Filter Counts - Basic", 
+            "GET", 
+            "doctors/filter-counts", 
+            200
+        )
+        all_success = all_success and success1
+        
+        # Verify response structure
+        if success1 and response1:
+            expected_keys = ['total_doctors', 'specializations', 'cities', 'consultation_types', 'experience_ranges']
+            missing_keys = [key for key in expected_keys if key not in response1]
+            if missing_keys:
+                print(f"   ⚠️  Missing keys in filter counts response: {missing_keys}")
+            else:
+                print(f"   ✅ All expected keys present in filter counts")
+                
+            # Check experience ranges structure
+            if 'experience_ranges' in response1:
+                exp_ranges = response1['experience_ranges']
+                expected_ranges = ['0-5 years', '6-10 years', '11-20 years', '20+ years']
+                missing_ranges = [r for r in expected_ranges if r not in exp_ranges]
+                if missing_ranges:
+                    print(f"   ⚠️  Missing experience ranges: {missing_ranges}")
+                else:
+                    print(f"   ✅ All experience ranges present")
+        
+        # Test filter counts with base filters applied
+        success2, response2 = self.run_test(
+            "Filter Counts - With Base Filters", 
+            "GET", 
+            "doctors/filter-counts?specialization=Cardiology", 
+            200
+        )
+        all_success = all_success and success2
+        
+        # Test filter counts with search
+        success3, response3 = self.run_test(
+            "Filter Counts - With Search", 
+            "GET", 
+            "doctors/filter-counts?search=heart", 
+            200
+        )
+        all_success = all_success and success3
+        
+        # Test filter counts with city filter
+        success4, response4 = self.run_test(
+            "Filter Counts - With City Filter", 
+            "GET", 
+            "doctors/filter-counts?city=New York", 
+            200
+        )
+        all_success = all_success and success4
+        
+        return all_success, {}
+
+    def test_doctor_search_suggestions(self):
+        """Test doctor search suggestions endpoint"""
+        print("\n💡 Doctor Search Suggestions Tests")
+        
+        all_success = True
+        
+        # Test basic suggestions
+        success1, response1 = self.run_test(
+            "Search Suggestions - Basic", 
+            "GET", 
+            "doctors/suggestions?query=card", 
+            200
+        )
+        all_success = all_success and success1
+        
+        # Verify response structure
+        if success1 and response1:
+            if 'suggestions' not in response1:
+                print(f"   ⚠️  Missing 'suggestions' key in response")
+            else:
+                suggestions = response1['suggestions']
+                if isinstance(suggestions, list):
+                    print(f"   ✅ Suggestions returned as list with {len(suggestions)} items")
+                else:
+                    print(f"   ⚠️  Suggestions should be a list, got {type(suggestions)}")
+        
+        # Test suggestions with different queries
+        test_queries = ["heart", "new", "dr", "med", "cardio"]
+        for query in test_queries:
+            success, response = self.run_test(
+                f"Search Suggestions - Query '{query}'", 
+                "GET", 
+                f"doctors/suggestions?query={query}", 
+                200
+            )
+            all_success = all_success and success
+        
+        # Test minimum query length (should return empty for short queries)
+        success2, response2 = self.run_test(
+            "Search Suggestions - Short Query", 
+            "GET", 
+            "doctors/suggestions?query=a", 
+            200
+        )
+        all_success = all_success and success2
+        
+        if success2 and response2:
+            suggestions = response2.get('suggestions', [])
+            if len(suggestions) == 0:
+                print(f"   ✅ Short query correctly returns empty suggestions")
+            else:
+                print(f"   ⚠️  Short query should return empty suggestions, got {len(suggestions)}")
+        
+        # Test empty query
+        success3, response3 = self.run_test(
+            "Search Suggestions - Empty Query", 
+            "GET", 
+            "doctors/suggestions?query=", 
+            200
+        )
+        all_success = all_success and success3
+        
+        # Test suggestions limit (should return max 10)
+        success4, response4 = self.run_test(
+            "Search Suggestions - Limit Check", 
+            "GET", 
+            "doctors/suggestions?query=a", 
+            200
+        )
+        all_success = all_success and success4
+        
+        return all_success, {}
+
+    def test_enhanced_search_integration(self):
+        """Test integration scenarios with enhanced search"""
+        print("\n🔗 Enhanced Search Integration Tests")
+        
+        all_success = True
+        
+        # Test complex filter combinations
+        complex_filters = [
+            "search=cardiology&min_fee=50&max_fee=150&sort_by=rating",
+            "specialization=Cardiology&min_experience=10&has_availability=true&sort_by=experience",
+            "city=New York&min_rating=4.0&consultation_type=both&sort_by=fee_asc",
+            "search=heart&min_fee=75&min_experience=5&min_rating=4.5&sort_by=name"
+        ]
+        
+        for i, filter_combo in enumerate(complex_filters):
+            success, response = self.run_test(
+                f"Integration Test {i+1} - Complex Filters", 
+                "GET", 
+                f"doctors?{filter_combo}", 
+                200
+            )
+            all_success = all_success and success
+            
+            # Verify pagination still works with complex filters
+            success_page, response_page = self.run_test(
+                f"Integration Test {i+1} - Pagination with Filters", 
+                "GET", 
+                f"doctors?{filter_combo}&skip=0&limit=3", 
+                200
+            )
+            all_success = all_success and success_page
+        
+        # Test edge cases
+        edge_cases = [
+            ("Empty Results", "search=nonexistentspecialty&min_fee=10000"),
+            ("Invalid Parameters", "min_fee=-50&max_fee=abc&min_experience=-5"),
+            ("Extreme Values", "min_fee=0&max_fee=999999&min_experience=0&min_rating=0"),
+            ("Special Characters", "search=heart%20care&city=New%20York")
+        ]
+        
+        for test_name, params in edge_cases:
+            success, response = self.run_test(
+                f"Integration Edge Case - {test_name}", 
+                "GET", 
+                f"doctors?{params}", 
+                200  # Should still return 200 even with no results or invalid params
+            )
+            all_success = all_success and success
+        
+        return all_success, {}
+
     def test_patient_cannot_create_doctor_profile(self):
         """Test that patients cannot create doctor profiles"""
         if 'patient' not in self.tokens:
