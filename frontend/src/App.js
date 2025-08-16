@@ -2131,7 +2131,7 @@ const DoctorDirectory = () => {
       </div>
     </PageTransition>
   );
-;
+};
 
 // Appointment Management Components
 const AppointmentCard = ({ appointment, userRole, onStatusUpdate, onCancel }) => {
