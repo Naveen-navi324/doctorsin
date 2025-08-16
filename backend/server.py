@@ -519,35 +519,137 @@ async def get_doctor_profile_by_id(doctor_id: str):
 
 @api_router.get("/doctors", response_model=List[DoctorProfileResponse])
 async def get_all_doctors(
+    # Filtering parameters
     specialization: Optional[str] = None,
     city: Optional[str] = None,
     consultation_type: Optional[ConsultationType] = None,
+    search: Optional[str] = None,  # New: search by name, clinic, qualifications
+    min_fee: Optional[float] = None,
+    max_fee: Optional[float] = None,
+    min_experience: Optional[int] = None,
+    min_rating: Optional[float] = None,
+    has_availability: Optional[bool] = None,  # New: filter by current availability
+    # Sorting parameters
+    sort_by: Optional[str] = "rating",  # rating, experience, fee_asc, fee_desc, name
+    # Pagination
     skip: int = 0,
     limit: int = 20
 ):
     # Build query
     query = {}
+    
+    # Text search across multiple fields
+    if search:
+        search_pattern = {"$regex": search, "$options": "i"}
+        query["$or"] = [
+            {"specializations": search_pattern},
+            {"qualifications": search_pattern},
+            {"clinic_info.name": search_pattern},
+            {"bio": search_pattern}
+        ]
+        # Also search by doctor name (we'll handle this separately)
+    
+    # Filter by specialization
     if specialization:
         query["specializations"] = {"$in": [specialization]}
+    
+    # Filter by city
     if city:
-        query["clinic_info.city"] = city
+        query["clinic_info.city"] = {"$regex": city, "$options": "i"}
+    
+    # Filter by consultation type
     if consultation_type:
         query["consultation_types"] = {"$in": [consultation_type]}
     
-    # Get doctor profiles
-    profiles = await db.doctor_profiles.find(query).skip(skip).limit(limit).to_list(limit)
+    # Filter by experience
+    if min_experience:
+        query["experience_years"] = {"$gte": min_experience}
     
-    # Get user information for each doctor
+    # Filter by fees
+    fee_filter = {}
+    if min_fee:
+        fee_filter["$gte"] = min_fee
+    if max_fee:
+        fee_filter["$lte"] = max_fee
+    
+    if fee_filter:
+        # Apply fee filter to both online and clinic fees
+        query["$or"] = query.get("$or", []) + [
+            {"consultation_fee_online": fee_filter},
+            {"consultation_fee_clinic": fee_filter}
+        ]
+    
+    # Get doctor profiles
+    profiles_cursor = db.doctor_profiles.find(query)
+    
+    # Get all profiles first (for sorting)
+    all_profiles = await profiles_cursor.to_list(None)
+    
+    # Get user information and build responses
     doctor_responses = []
-    for profile in profiles:
+    for profile in all_profiles:
         user = await db.users.find_one({"id": profile["user_id"]})
         if user:
+            # Skip if name search doesn't match
+            if search and search.lower() not in user.get('name', '').lower():
+                if not any(search.lower() in str(profile.get(field, '')).lower() 
+                          for field in ['specializations', 'qualifications', 'bio']):
+                    if not (profile.get('clinic_info', {}).get('name', '') and 
+                           search.lower() in profile['clinic_info']['name'].lower()):
+                        continue
+            
             response = DoctorProfileResponse(**DoctorProfile(**profile).dict())
             response.user_name = user.get('name')
             response.user_email = user.get('email')
+            
+            # Add computed fields for sorting and filtering
+            response.rating = 4.5 + (hash(profile["user_id"]) % 10) / 10  # Mock rating 4.5-5.5
+            response.total_reviews = (hash(profile["user_id"]) % 50) + 10  # Mock 10-60 reviews
+            response.is_verified = True  # Mock verification
+            response.distance = None  # Will be calculated if coordinates provided
+            
+            # Check availability for filtering
+            if has_availability:
+                today = datetime.now().date()
+                next_week = today + timedelta(days=7)
+                available_slots = await db.availability_slots.find({
+                    "doctor_id": profile["user_id"],
+                    "date": {"$gte": datetime.combine(today, datetime.min.time()), 
+                            "$lte": datetime.combine(next_week, datetime.max.time())},
+                    "status": "available"
+                }).to_list(10)
+                
+                response.has_current_availability = len(available_slots) > 0
+                if has_availability and not response.has_current_availability:
+                    continue
+            else:
+                response.has_current_availability = True  # Default assumption
+            
+            # Filter by rating
+            if min_rating and response.rating < min_rating:
+                continue
+                
             doctor_responses.append(response)
     
-    return doctor_responses
+    # Sort results
+    if sort_by == "rating":
+        doctor_responses.sort(key=lambda x: x.rating, reverse=True)
+    elif sort_by == "experience":
+        doctor_responses.sort(key=lambda x: x.experience_years or 0, reverse=True)
+    elif sort_by == "fee_asc":
+        doctor_responses.sort(key=lambda x: min(x.consultation_fee_online or 999999, 
+                                               x.consultation_fee_clinic or 999999))
+    elif sort_by == "fee_desc":
+        doctor_responses.sort(key=lambda x: max(x.consultation_fee_online or 0, 
+                                               x.consultation_fee_clinic or 0), reverse=True)
+    elif sort_by == "name":
+        doctor_responses.sort(key=lambda x: x.user_name or "")
+    
+    # Apply pagination
+    total = len(doctor_responses)
+    paginated_results = doctor_responses[skip:skip + limit]
+    
+    return paginated_results
 
 # Availability Routes
 @api_router.post("/doctor/availability", response_model=AvailabilitySlotResponse)
