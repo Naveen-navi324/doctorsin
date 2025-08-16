@@ -1421,6 +1421,303 @@ async def get_user_by_id(
         )
     return UserResponse(**User(**user).dict())
 
+# Chat System Routes
+@app.websocket("/ws/chat/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(websocket, user_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Keep connection alive - actual message sending happens through REST API
+            await websocket.send_text(json.dumps({"type": "ping", "message": "Connection alive"}))
+    except WebSocketDisconnect:
+        manager.disconnect(user_id)
+
+@api_router.post("/chat/send", response_model=ChatMessageResponse)
+async def send_message(
+    request: SendMessageRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Send a text message"""
+    # Find or create conversation
+    conversation_query = {
+        "participants": {"$all": [current_user.id, request.receiver_id]},
+        "is_active": True
+    }
+    
+    conversation = await db.chat_conversations.find_one(conversation_query)
+    
+    if not conversation:
+        # Create new conversation
+        conversation_data = ChatConversation(
+            participants=[current_user.id, request.receiver_id],
+            appointment_id=request.appointment_id
+        )
+        await db.chat_conversations.insert_one(conversation_data.dict())
+        conversation = conversation_data.dict()
+    
+    # Create message
+    message_data = ChatMessage(
+        conversation_id=conversation["id"],
+        sender_id=current_user.id,
+        receiver_id=request.receiver_id,
+        message_type=request.message_type,
+        content=request.content
+    )
+    
+    # Save message to database
+    await db.chat_messages.insert_one(message_data.dict())
+    
+    # Update conversation's last message
+    await db.chat_conversations.update_one(
+        {"id": conversation["id"]},
+        {
+            "$set": {
+                "last_message_id": message_data.id,
+                "last_message_at": message_data.created_at
+            }
+        }
+    )
+    
+    # Build response
+    response = ChatMessageResponse(**message_data.dict())
+    response.sender_name = current_user.name
+    response.sender_role = current_user.role
+    
+    # Send real-time notification to receiver
+    notification = {
+        "type": "new_message",
+        "message": response.dict()
+    }
+    await manager.send_personal_message(notification, request.receiver_id)
+    
+    return response
+
+@api_router.post("/chat/upload", response_model=ChatMessageResponse)
+async def upload_file_message(
+    receiver_id: str,
+    appointment_id: Optional[str] = None,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload and send a file message"""
+    # Validate file
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided"
+        )
+    
+    # Check file size (10MB limit)
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    if len(file_content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size too large (max 10MB)"
+        )
+    
+    # Determine file type
+    mime_type, _ = mimetypes.guess_type(file.filename)
+    message_type = MessageType.IMAGE if mime_type and mime_type.startswith('image/') else MessageType.FILE
+    
+    # Save file
+    file_id = str(uuid.uuid4())
+    file_extension = Path(file.filename).suffix
+    safe_filename = f"{file_id}{file_extension}"
+    file_path = UPLOADS_DIR / safe_filename
+    
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(file_content)
+    
+    # Find or create conversation
+    conversation_query = {
+        "participants": {"$all": [current_user.id, receiver_id]},
+        "is_active": True
+    }
+    
+    conversation = await db.chat_conversations.find_one(conversation_query)
+    
+    if not conversation:
+        # Create new conversation
+        conversation_data = ChatConversation(
+            participants=[current_user.id, receiver_id],
+            appointment_id=appointment_id
+        )
+        await db.chat_conversations.insert_one(conversation_data.dict())
+        conversation = conversation_data.dict()
+    
+    # Create message
+    message_data = ChatMessage(
+        conversation_id=conversation["id"],
+        sender_id=current_user.id,
+        receiver_id=receiver_id,
+        message_type=message_type,
+        content=f"Sent a {message_type.value}: {file.filename}",
+        file_url=f"/uploads/{safe_filename}",
+        file_name=file.filename,
+        file_size=len(file_content)
+    )
+    
+    # Save message to database
+    await db.chat_messages.insert_one(message_data.dict())
+    
+    # Update conversation's last message
+    await db.chat_conversations.update_one(
+        {"id": conversation["id"]},
+        {
+            "$set": {
+                "last_message_id": message_data.id,
+                "last_message_at": message_data.created_at
+            }
+        }
+    )
+    
+    # Build response
+    response = ChatMessageResponse(**message_data.dict())
+    response.sender_name = current_user.name
+    response.sender_role = current_user.role
+    
+    # Send real-time notification to receiver
+    notification = {
+        "type": "new_message",
+        "message": response.dict()
+    }
+    await manager.send_personal_message(notification, receiver_id)
+    
+    return response
+
+@api_router.get("/chat/conversations", response_model=List[ChatConversationResponse])
+async def get_conversations(
+    current_user: User = Depends(get_current_user)
+):
+    """Get all conversations for the current user"""
+    conversations = await db.chat_conversations.find(
+        {
+            "participants": current_user.id,
+            "is_active": True
+        }
+    ).sort("last_message_at", -1).to_list(100)
+    
+    conversation_responses = []
+    for conv in conversations:
+        conversation = ChatConversation(**conv)
+        response = ChatConversationResponse(**conversation.dict())
+        
+        # Get other participant info
+        other_participant_id = next((p for p in conversation.participants if p != current_user.id), None)
+        if other_participant_id:
+            other_user = await db.users.find_one({"id": other_participant_id})
+            if other_user:
+                response.other_participant_name = other_user.get("name")
+                response.other_participant_role = other_user.get("role")
+        
+        # Get last message
+        if conversation.last_message_id:
+            last_message = await db.chat_messages.find_one({"id": conversation.last_message_id})
+            if last_message:
+                msg_response = ChatMessageResponse(**last_message)
+                # Get sender info
+                sender = await db.users.find_one({"id": last_message["sender_id"]})
+                if sender:
+                    msg_response.sender_name = sender.get("name")
+                    msg_response.sender_role = sender.get("role")
+                response.last_message = msg_response
+        
+        # Count unread messages
+        unread_count = await db.chat_messages.count_documents({
+            "conversation_id": conversation.id,
+            "receiver_id": current_user.id,
+            "status": {"$ne": MessageStatus.READ}
+        })
+        response.unread_count = unread_count
+        
+        conversation_responses.append(response)
+    
+    return conversation_responses
+
+@api_router.get("/chat/messages/{conversation_id}", response_model=List[ChatMessageResponse])
+async def get_messages(
+    conversation_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user)
+):
+    """Get messages for a conversation"""
+    # Verify user is part of conversation
+    conversation = await db.chat_conversations.find_one({
+        "id": conversation_id,
+        "participants": current_user.id
+    })
+    
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+    
+    # Get messages
+    messages = await db.chat_messages.find(
+        {"conversation_id": conversation_id}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    # Build responses with sender info
+    message_responses = []
+    for msg in reversed(messages):  # Reverse to get chronological order
+        response = ChatMessageResponse(**msg)
+        
+        # Get sender info
+        sender = await db.users.find_one({"id": msg["sender_id"]})
+        if sender:
+            response.sender_name = sender.get("name")
+            response.sender_role = sender.get("role")
+        
+        message_responses.append(response)
+    
+    # Mark messages as read
+    await db.chat_messages.update_many(
+        {
+            "conversation_id": conversation_id,
+            "receiver_id": current_user.id,
+            "status": {"$ne": MessageStatus.READ}
+        },
+        {
+            "$set": {
+                "status": MessageStatus.READ,
+                "read_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    return message_responses
+
+@api_router.put("/chat/messages/{message_id}/read")
+async def mark_message_read(
+    message_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Mark a specific message as read"""
+    result = await db.chat_messages.update_one(
+        {
+            "id": message_id,
+            "receiver_id": current_user.id
+        },
+        {
+            "$set": {
+                "status": MessageStatus.READ,
+                "read_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found"
+        )
+    
+    return {"message": "Message marked as read"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
