@@ -1451,31 +1451,80 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
   );
 };
 
-// Doctor Directory Component
+// Doctor Directory Component with Enhanced Search & Filtering
 const DoctorDirectory = () => {
   const [doctors, setDoctors] = useState([]);
+  const [filteredDoctors, setFilteredDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  
+  // Enhanced filters state
   const [filters, setFilters] = useState({
+    search: '',
     specialization: '',
     city: '',
-    consultation_type: ''
+    consultation_type: '',
+    min_fee: '',
+    max_fee: '',
+    min_experience: '',
+    min_rating: '',
+    has_availability: false,
+    sort_by: 'rating'
   });
+  
+  // UI state
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filterCounts, setFilterCounts] = useState({});
+  const [savedFilters, setSavedFilters] = useState([]);
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
+  // Load saved data from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('docease_saved_filters');
+    const history = localStorage.getItem('docease_search_history');
+    
+    if (saved) setSavedFilters(JSON.parse(saved));
+    if (history) setSearchHistory(JSON.parse(history));
+  }, []);
+
+  // Fetch doctors when filters change
   useEffect(() => {
     fetchDoctors();
+    fetchFilterCounts();
   }, [filters]);
+
+  // Debounced search suggestions
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (filters.search.length >= 2) {
+        fetchSuggestions();
+      } else {
+        setSuggestions([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [filters.search]);
 
   const fetchDoctors = async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
-      if (filters.specialization) params.append('specialization', filters.specialization);
-      if (filters.city) params.append('city', filters.city);
-      if (filters.consultation_type) params.append('consultation_type', filters.consultation_type);
+      
+      // Add all filter parameters
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== '' && value !== false) {
+          params.append(key, value.toString());
+        }
+      });
       
       const response = await axios.get(`${API}/doctors?${params}`);
       setDoctors(response.data);
+      setFilteredDoctors(response.data);
     } catch (error) {
       toast.error('Error fetching doctors');
     } finally {
@@ -1483,12 +1532,87 @@ const DoctorDirectory = () => {
     }
   };
 
+  const fetchFilterCounts = async () => {
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== '' && value !== false && key !== 'sort_by') {
+          params.append(key, value.toString());
+        }
+      });
+      
+      const response = await axios.get(`${API}/doctors/filter-counts?${params}`);
+      setFilterCounts(response.data);
+    } catch (error) {
+      console.error('Error fetching filter counts:', error);
+    }
+  };
+
+  const fetchSuggestions = async () => {
+    try {
+      const response = await axios.get(`${API}/doctors/suggestions?query=${filters.search}`);
+      setSuggestions(response.data.suggestions);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+    }
+  };
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    
+    // Add to search history if it's a search
+    if (key === 'search' && value.length > 2) {
+      const newHistory = [value, ...searchHistory.filter(h => h !== value)].slice(0, 5);
+      setSearchHistory(newHistory);
+      localStorage.setItem('docease_search_history', JSON.stringify(newHistory));
+    }
+  };
+
+  const handleSuggestionSelect = (suggestion) => {
+    handleFilterChange('search', suggestion);
+    setShowSuggestions(false);
+  };
+
   const resetFilters = () => {
     setFilters({
+      search: '',
       specialization: '',
       city: '',
-      consultation_type: ''
+      consultation_type: '',
+      min_fee: '',
+      max_fee: '',
+      min_experience: '',
+      min_rating: '',
+      has_availability: false,
+      sort_by: 'rating'
     });
+  };
+
+  const saveCurrentFilters = () => {
+    const filterName = prompt('Enter a name for this search:');
+    if (filterName) {
+      const newSavedFilter = {
+        id: Date.now(),
+        name: filterName,
+        filters: { ...filters }
+      };
+      const updated = [...savedFilters, newSavedFilter];
+      setSavedFilters(updated);
+      localStorage.setItem('docease_saved_filters', JSON.stringify(updated));
+      toast.success('Search saved successfully!');
+    }
+  };
+
+  const applySavedFilter = (savedFilter) => {
+    setFilters(savedFilter.filters);
+    toast.success(`Applied saved search: ${savedFilter.name}`);
+  };
+
+  const deleteSavedFilter = (id) => {
+    const updated = savedFilters.filter(f => f.id !== id);
+    setSavedFilters(updated);
+    localStorage.setItem('docease_saved_filters', JSON.stringify(updated));
   };
 
   const handleBookAppointment = (doctor) => {
@@ -1497,157 +1621,517 @@ const DoctorDirectory = () => {
   };
 
   const handleBookingSuccess = () => {
-    // Refresh doctors list to get updated availability
     fetchDoctors();
   };
 
+  const sortingOptions = [
+    { value: 'rating', label: '⭐ Highest Rated' },
+    { value: 'experience', label: '🎓 Most Experienced' },
+    { value: 'fee_asc', label: '💰 Lowest Fee' },
+    { value: 'fee_desc', label: '💎 Highest Fee' },
+    { value: 'name', label: '📝 Name A-Z' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Find Doctors</h1>
-          <p className="text-gray-600">Browse and connect with qualified healthcare professionals</p>
-        </div>
-
-        {/* Filters */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Search className="h-5 w-5 mr-2" />
-              Search Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="specialization">Specialization</Label>
-                <Input
-                  id="specialization"
-                  placeholder="e.g. Cardiology"
-                  value={filters.specialization}
-                  onChange={(e) => setFilters(prev => ({ ...prev, specialization: e.target.value }))}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  placeholder="e.g. New York"
-                  value={filters.city}
-                  onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="consultation_type">Consultation Type</Label>
-                <select
-                  id="consultation_type"
-                  value={filters.consultation_type}
-                  onChange={(e) => setFilters(prev => ({ ...prev, consultation_type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Types</option>
-                  <option value="online">Online Only</option>
-                  <option value="clinic">Clinic Only</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
-              
-              <div className="flex items-end">
-                <Button variant="outline" onClick={resetFilters} className="w-full">
-                  Clear Filters
-                </Button>
-              </div>
+    <PageTransition>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100">
+        <Navigation />
+        
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Header Section */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 text-center"
+          >
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-4">
+              Find Your Perfect Doctor
+            </h1>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+              Search through our verified network of healthcare professionals and book appointments instantly
+            </p>
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-500">
+              <span className="flex items-center">
+                <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                {filterCounts.total_doctors || 0} Verified Doctors
+              </span>
+              <span className="flex items-center">
+                <Clock className="h-4 w-4 text-blue-500 mr-1" />
+                Instant Booking
+              </span>
+              <span className="flex items-center">
+                <Shield className="h-4 w-4 text-purple-500 mr-1" />
+                Secure Platform
+              </span>
             </div>
-          </CardContent>
-        </Card>
+          </motion.div>
 
-        {/* Doctor List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <Heart className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-              <p className="text-gray-600">Loading doctors...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {doctors.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No doctors found</h3>
-                <p className="text-gray-600">Try adjusting your search filters</p>
+          {/* Enhanced Search Section */}
+          <AnimatedCard className="mb-8 bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center text-xl">
+                  <Search className="h-6 w-6 mr-2 text-blue-600" />
+                  Smart Search & Filters
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMap(!showMap)}
+                    className="flex items-center"
+                  >
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {showMap ? 'List View' : 'Map View'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  >
+                    {showAdvancedFilters ? 'Simple' : 'Advanced'}
+                  </Button>
+                </div>
               </div>
-            ) : (
-              doctors.map((doctor) => (
-                <Card key={doctor.id} className="doctor-card">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback className="bg-blue-600 text-white">
-                          {doctor.user_name?.charAt(0).toUpperCase() || 'D'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">Dr. {doctor.user_name}</CardTitle>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                          <span className="text-sm text-gray-600">
-                            {doctor.rating.toFixed(1)} ({doctor.total_reviews} reviews)
-                          </span>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              {/* Main Search Bar */}
+              <div className="relative">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1 relative">
+                    <AnimatedInput
+                      label=""
+                      placeholder="Search doctors, specializations, or locations..."
+                      value={filters.search}
+                      onChange={(e) => handleFilterChange('search', e.target.value)}
+                      onFocus={() => filters.search.length >= 2 && setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      icon={Search}
+                      className="text-lg py-3"
+                    />
+                    
+                    {/* Search Suggestions */}
+                    <AnimatePresence>
+                      {showSuggestions && suggestions.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-full left-0 right-0 z-50 bg-white rounded-lg shadow-xl border mt-1 max-h-48 overflow-y-auto"
+                        >
+                          {suggestions.map((suggestion, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              onClick={() => handleSuggestionSelect(suggestion)}
+                              className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 flex items-center"
+                            >
+                              <Search className="h-4 w-4 text-gray-400 mr-2" />
+                              {suggestion}
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  
+                  {/* Sort Dropdown */}
+                  <div className="w-48">
+                    <AnimatedSelect
+                      label=""
+                      options={sortingOptions}
+                      value={filters.sort_by}
+                      onChange={(value) => handleFilterChange('sort_by', value)}
+                      placeholder="Sort by..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Filter Tags */}
+              <div className="flex flex-wrap gap-2">
+                {searchHistory.length > 0 && (
+                  <>
+                    <span className="text-sm text-gray-500 mr-2">Recent:</span>
+                    {searchHistory.map((term, index) => (
+                      <Badge
+                        key={index}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100"
+                        onClick={() => handleFilterChange('search', term)}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        {term}
+                      </Badge>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* Basic Filters Row */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Specialization</Label>
+                  <Input
+                    placeholder="e.g. Cardiology"
+                    value={filters.specialization}
+                    onChange={(e) => handleFilterChange('specialization', e.target.value)}
+                  />
+                  {filterCounts.specializations && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {Object.entries(filterCounts.specializations).slice(0, 3).map(([spec, count]) => (
+                        <Badge
+                          key={spec}
+                          variant="secondary"
+                          className="text-xs cursor-pointer hover:bg-blue-100"
+                          onClick={() => handleFilterChange('specialization', spec)}
+                        >
+                          {spec} ({count})
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">City</Label>
+                  <Input
+                    placeholder="e.g. New York"
+                    value={filters.city}
+                    onChange={(e) => handleFilterChange('city', e.target.value)}
+                  />
+                  {filterCounts.cities && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {Object.entries(filterCounts.cities).slice(0, 3).map(([city, count]) => (
+                        <Badge
+                          key={city}
+                          variant="secondary"
+                          className="text-xs cursor-pointer hover:bg-blue-100"
+                          onClick={() => handleFilterChange('city', city)}
+                        >
+                          {city} ({count})
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Consultation Type</Label>
+                  <select
+                    value={filters.consultation_type}
+                    onChange={(e) => handleFilterChange('consultation_type', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Types</option>
+                    <option value="online">💻 Online ({filterCounts.consultation_types?.online || 0})</option>
+                    <option value="clinic">🏥 Clinic ({filterCounts.consultation_types?.clinic || 0})</option>
+                    <option value="both">🔄 Both ({filterCounts.consultation_types?.both || 0})</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-end space-x-2">
+                  <Button variant="outline" onClick={resetFilters} className="flex-1">
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={saveCurrentFilters}
+                    className="px-3"
+                    title="Save this search"
+                  >
+                    <Heart className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Advanced Filters */}
+              <AnimatePresence>
+                {showAdvancedFilters && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="border-t pt-6 space-y-4"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Fee Range</Label>
+                        <div className="flex space-x-2">
+                          <Input
+                            placeholder="Min $"
+                            type="number"
+                            value={filters.min_fee}
+                            onChange={(e) => handleFilterChange('min_fee', e.target.value)}
+                          />
+                          <Input
+                            placeholder="Max $"
+                            type="number"
+                            value={filters.max_fee}
+                            onChange={(e) => handleFilterChange('max_fee', e.target.value)}
+                          />
                         </div>
                       </div>
-                      {doctor.is_verified && (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      )}
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4">
-                    {/* Specializations */}
-                    <div>
-                      <div className="flex flex-wrap gap-1">
-                        {doctor.specializations.slice(0, 3).map((spec, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {spec}
-                          </Badge>
-                        ))}
-                        {doctor.specializations.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{doctor.specializations.length - 3} more
-                          </Badge>
-                        )}
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Min Experience (Years)</Label>
+                        <select
+                          value={filters.min_experience}
+                          onChange={(e) => handleFilterChange('min_experience', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Any Experience</option>
+                          <option value="1">1+ years ({filterCounts.experience_ranges?.['0-5 years'] || 0})</option>
+                          <option value="5">5+ years</option>
+                          <option value="10">10+ years ({filterCounts.experience_ranges?.['11-20 years'] || 0})</option>
+                          <option value="20">20+ years ({filterCounts.experience_ranges?.['20+ years'] || 0})</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Min Rating</Label>
+                        <select
+                          value={filters.min_rating}
+                          onChange={(e) => handleFilterChange('min_rating', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Any Rating</option>
+                          <option value="4">⭐ 4+ Stars</option>
+                          <option value="4.5">⭐ 4.5+ Stars</option>
+                          <option value="5">⭐ 5 Stars</option>
+                        </select>
                       </div>
                     </div>
+                    
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={filters.has_availability}
+                          onChange={(e) => handleFilterChange('has_availability', e.target.checked)}
+                          className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm">Available this week</span>
+                      </label>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                    {/* Experience */}
-                    {doctor.experience_years && (
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <Award className="h-4 w-4" />
-                        <span>{doctor.experience_years} years experience</span>
-                      </div>
-                    )}
+              {/* Saved Filters */}
+              {savedFilters.length > 0 && (
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium mb-2 block">Saved Searches</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {savedFilters.map((savedFilter) => (
+                      <Badge
+                        key={savedFilter.id}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-blue-100 group"
+                      >
+                        <span onClick={() => applySavedFilter(savedFilter)}>
+                          💾 {savedFilter.name}
+                        </span>
+                        <X
+                          className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 hover:text-red-500"
+                          onClick={() => deleteSavedFilter(savedFilter.id)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </AnimatedCard>
 
-                    {/* Location */}
-                    {doctor.clinic_info?.city && (
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        <span>{doctor.clinic_info.city}, {doctor.clinic_info.state}</span>
-                      </div>
-                    )}
+          {/* Results Section */}
+          {showMap ? (
+            // Map View Component (Simple placeholder for now)
+            <AnimatedCard className="mb-8 bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+              <CardContent className="p-8 text-center">
+                <MapPin className="h-24 w-24 text-blue-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Map View Coming Soon!</h3>
+                <p className="text-gray-600 mb-4">
+                  Interactive map showing doctor locations will be available in the next update.
+                </p>
+                <Button onClick={() => setShowMap(false)}>
+                  Return to List View
+                </Button>
+              </CardContent>
+            </AnimatedCard>
+          ) : (
+            /* Doctor Grid */
+            <div className="space-y-6">
+              {/* Results Header */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {loading ? 'Searching...' : `${filteredDoctors.length} Doctors Found`}
+                </h2>
+                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                  <span>Sorted by: {sortingOptions.find(opt => opt.value === filters.sort_by)?.label}</span>
+                </div>
+              </div>
 
-                    {/* Consultation Fees */}
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        {doctor.consultation_fee_online && (
-                          <div className="flex items-center space-x-2 text-sm">
-                            <DollarSign className="h-3 w-3 text-green-600" />
-                            <span>Online: ${doctor.consultation_fee_online}</span>
+              {/* Doctor List */}
+              {loading ? (
+                <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[...Array(6)].map((_, index) => (
+                    <StaggerItem key={index}>
+                      <DoctorCardSkeleton />
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              ) : filteredDoctors.length === 0 ? (
+                <AnimatedCard className="text-center py-12">
+                  <CardContent>
+                    <Search className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-medium text-gray-900 mb-2">No doctors found</h3>
+                    <p className="text-gray-600 mb-4">
+                      Try adjusting your search criteria or filters
+                    </p>
+                    <Button onClick={resetFilters}>Clear All Filters</Button>
+                  </CardContent>
+                </AnimatedCard>
+              ) : (
+                <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredDoctors.map((doctor, index) => (
+                    <StaggerItem key={doctor.id}>
+                      <AnimatedCard className="doctor-card hover:shadow-xl transition-all duration-300 bg-white/90 backdrop-blur-sm">
+                        <CardHeader className="pb-4">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-14 w-14 ring-2 ring-blue-100">
+                              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-lg font-semibold">
+                                {doctor.user_name?.charAt(0).toUpperCase() || 'D'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <CardTitle className="text-lg flex items-center">
+                                Dr. {doctor.user_name}
+                                {doctor.is_verified && (
+                                  <CheckCircle className="h-5 w-5 text-green-500 ml-2" />
+                                )}
+                              </CardTitle>
+                              <div className="flex items-center space-x-1 mt-1">
+                                <div className="flex">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star 
+                                      key={i}
+                                      className={`h-4 w-4 ${
+                                        i < Math.floor(doctor.rating) 
+                                          ? 'text-yellow-400 fill-current' 
+                                          : 'text-gray-300'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-sm text-gray-600">
+                                  {doctor.rating?.toFixed(1)} ({doctor.total_reviews} reviews)
+                                </span>
+                              </div>
+                            </div>
+                            {doctor.has_current_availability && (
+                              <Badge className="bg-green-100 text-green-800 text-xs">
+                                Available
+                              </Badge>
+                            )}
                           </div>
-                        )}
+                        </CardHeader>
+                        
+                        <CardContent className="space-y-4">
+                          {/* Specializations */}
+                          <div>
+                            <div className="flex flex-wrap gap-1">
+                              {doctor.specializations?.slice(0, 3).map((spec, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {spec}
+                                </Badge>
+                              )) || []}
+                              {(doctor.specializations?.length > 3) && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{doctor.specializations.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Experience & Location */}
+                          <div className="space-y-2">
+                            {doctor.experience_years && (
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <Award className="h-4 w-4 text-amber-500" />
+                                <span>{doctor.experience_years} years experience</span>
+                              </div>
+                            )}
+
+                            {doctor.clinic_info?.city && (
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <MapPin className="h-4 w-4 text-red-500" />
+                                <span>{doctor.clinic_info.city}, {doctor.clinic_info.state}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Consultation Fees */}
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            {doctor.consultation_fee_online && (
+                              <div className="flex items-center space-x-1 text-green-600">
+                                <DollarSign className="h-3 w-3" />
+                                <span>Online: ${doctor.consultation_fee_online}</span>
+                              </div>
+                            )}
+                            {doctor.consultation_fee_clinic && (
+                              <div className="flex items-center space-x-1 text-blue-600">
+                                <DollarSign className="h-3 w-3" />
+                                <span>Clinic: ${doctor.consultation_fee_clinic}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Consultation Types */}
+                          <div className="flex flex-wrap gap-1">
+                            {doctor.consultation_types?.map((type, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {type === 'online' ? '💻 Online' : 
+                                 type === 'clinic' ? '🏥 Clinic' : '🔄 Both'}
+                              </Badge>
+                            )) || []}
+                          </div>
+
+                          {/* Book Button */}
+                          <AnimatedButton
+                            className="w-full mt-4"
+                            onClick={() => handleBookAppointment(doctor)}
+                            variant="primary"
+                          >
+                            <CalendarIcon className="h-4 w-4 mr-2" />
+                            Book Appointment
+                          </AnimatedButton>
+                        </CardContent>
+                      </AnimatedCard>
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Appointment Booking Modal */}
+        <Dialog open={showBookingModal} onOpenChange={setShowBookingModal}>
+          <AppointmentBookingModal
+            doctor={selectedDoctor}
+            onClose={() => setShowBookingModal(false)}
+            onBookingSuccess={handleBookingSuccess}
+          />
+        </Dialog>
+      </div>
+    </PageTransition>
+  );
+};
                         {doctor.consultation_fee_clinic && (
                           <div className="flex items-center space-x-2 text-sm">
                             <DollarSign className="h-3 w-3 text-blue-600" />
