@@ -1541,12 +1541,8 @@ class HealthcareAPITester:
             'file': ('test_report.txt', io.BytesIO(test_file_content), 'text/plain')
         }
         
-        data = {
-            'receiver_id': self.users['doctor']['id']
-        }
-        
-        # Custom request for file upload
-        url = f"{self.api_url}/chat/upload"
+        # Custom request for file upload with receiver_id as query parameter
+        url = f"{self.api_url}/chat/upload?receiver_id={self.users['doctor']['id']}"
         headers = {'Authorization': f'Bearer {self.tokens["patient"]}'}
         
         self.tests_run += 1
@@ -1556,7 +1552,7 @@ class HealthcareAPITester:
         print(f"   File: test_report.txt")
         
         try:
-            response = requests.post(url, files=files, data=data, headers=headers)
+            response = requests.post(url, files=files, headers=headers)
             success = response.status_code == 200
             
             if success:
@@ -1593,11 +1589,8 @@ class HealthcareAPITester:
             'file': ('test_xray.png', io.BytesIO(test_image_content), 'image/png')
         }
         
-        data = {
-            'receiver_id': self.users['patient']['id']
-        }
-        
-        url = f"{self.api_url}/chat/upload"
+        # Custom request for file upload with receiver_id as query parameter
+        url = f"{self.api_url}/chat/upload?receiver_id={self.users['patient']['id']}"
         headers = {'Authorization': f'Bearer {self.tokens["doctor"]}'}
         
         self.tests_run += 1
@@ -1607,7 +1600,7 @@ class HealthcareAPITester:
         print(f"   File: test_xray.png")
         
         try:
-            response = requests.post(url, files=files, data=data, headers=headers)
+            response = requests.post(url, files=files, headers=headers)
             success = response.status_code == 200
             
             if success:
