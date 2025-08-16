@@ -1256,6 +1256,20 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
     );
   }
 
+  if (!doctor) {
+    return (
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>No Doctor Selected</DialogTitle>
+          <DialogDescription>
+            Please select a doctor to book an appointment.
+          </DialogDescription>
+        </DialogHeader>
+        <Button onClick={onClose}>Close</Button>
+      </DialogContent>
+    );
+  }
+
   return (
     <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
       <DialogHeader>
