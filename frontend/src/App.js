@@ -1275,7 +1275,7 @@ const AppointmentBookingModal = ({ doctor, onClose, onBookingSuccess }) => {
       <DialogHeader>
         <DialogTitle className="flex items-center">
           <CalendarIcon className="h-6 w-6 mr-2 text-blue-600" />
-          Book Appointment with Dr. {doctor.user_name}
+          Book Appointment with Dr. {doctor?.user_name || 'Unknown Doctor'}
         </DialogTitle>
         <DialogDescription>
           {step === 1 && "Select an available time slot"}
