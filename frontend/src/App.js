@@ -2673,12 +2673,7 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Heart className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
+      <PageLoader message="Authenticating..." />
     );
   }
 
@@ -2691,12 +2686,7 @@ const DoctorRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Heart className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
+      <PageLoader message="Verifying credentials..." />
     );
   }
 
