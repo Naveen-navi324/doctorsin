@@ -1948,6 +1948,32 @@ def main():
     else:
         print("   ❌ Failed to setup test data for appointment tests")
     
+    # Real-time Chat System Tests
+    print("\n💬 Real-time Chat System Tests")
+    print("   📝 Message Sending Tests")
+    tester.test_send_text_message()
+    tester.test_send_reply_message()
+    tester.test_chat_role_based_access()
+    
+    print("   📁 File Upload Tests")
+    tester.test_upload_file_message()
+    tester.test_upload_image_message()
+    
+    print("   📋 Conversation Management Tests")
+    tester.test_get_conversations()
+    tester.test_get_doctor_conversations()
+    tester.test_get_conversation_messages()
+    tester.test_get_conversation_messages_with_pagination()
+    
+    print("   ✅ Message Status Tests")
+    tester.test_mark_message_as_read()
+    
+    print("   🔌 WebSocket Tests")
+    tester.test_websocket_connection()
+    
+    print("   🔗 Integration Tests")
+    tester.test_chat_integration_with_appointments()
+    
     # Admin Tests (if we can create admin user)
     print("\n👑 Admin Tests")
     admin_success, _ = tester.test_user_registration("admin", "_admin")
