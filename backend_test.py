@@ -1524,6 +1524,13 @@ def main():
     tester.test_get_all_doctors()
     tester.test_get_doctors_with_filters()
     
+    # Enhanced Doctor Search Tests
+    print("\n🔍 Enhanced Doctor Search & Filtering Tests")
+    tester.test_enhanced_doctor_search()
+    tester.test_doctor_filter_counts()
+    tester.test_doctor_search_suggestions()
+    tester.test_enhanced_search_integration()
+    
     # Doctor Availability Management Tests
     print("\n📅 Doctor Availability Management Tests")
     tester.test_patient_cannot_create_availability()
